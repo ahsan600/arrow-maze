@@ -1,8 +1,10 @@
 export type Direction = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT';
+export type Cell = { r: number; c: number };
+export type GridSize = { rows: number; cols: number };
 
 export interface Arrow {
   id: string;
-  cells: { r: number; c: number }[];
+  cells: Cell[];
   direction: Direction;
   color: string;
   active: boolean;

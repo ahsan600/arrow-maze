@@ -183,7 +183,7 @@ export const SettingsScreen: React.FC = () => {
         <PaperCard dogEar={false} radiusSize="md" style={styles.settingsCard}>
           <View style={styles.infoRow}>
             <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Total Crafted Puzzles</Text>
-            <Text style={[styles.infoValue, { color: theme.primary }]}>100 Levels</Text>
+            <Text style={[styles.infoValue, { color: theme.primary }]}>10,000 Levels</Text>
           </View>
           <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
           <View style={styles.infoRow}>

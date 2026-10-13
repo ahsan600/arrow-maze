@@ -15,7 +15,7 @@ import { IconButton } from '../../components/ui/IconButton';
 import { colors } from '../../theme/colors';
 import { getProgress, setProgress } from '../../storage/gameStorage';
 import { PuzzleBoard } from '../../components/game/PuzzleBoard';
-import { allLevels } from '../../game/levels';
+import { allLevels, getLevel } from '../../game/levels';
 import {
   generateLevelData,
   getAnimalNameForLevel,
@@ -70,13 +70,7 @@ export const GameScreen: React.FC = () => {
   const loadLevel = useCallback(async () => {
     // Find the requested level, or default to level 1 if not found
     const targetLevelId = levelId > 0 ? levelId : 1;
-    let levelDef = allLevels.find(l => l.id === targetLevelId);
-    if (!levelDef) {
-      levelDef = generateLevelData(
-        targetLevelId,
-        getAnimalNameForLevel(targetLevelId),
-      );
-    }
+    let levelDef = getLevel(targetLevelId);
 
     // We clone the arrows to prevent mutating the original level definition
     // and automatically extend 1-cell arrows to have a tail
@@ -224,13 +218,7 @@ export const GameScreen: React.FC = () => {
           }
 
           const targetLevelId = levelId > 0 ? levelId : 1;
-          let levelDef = allLevels.find(l => l.id === targetLevelId);
-          if (!levelDef) {
-            levelDef = generateLevelData(
-              targetLevelId,
-              getAnimalNameForLevel(targetLevelId),
-            );
-          }
+          let levelDef = getLevel(targetLevelId);
           const maxHearts = levelDef.maxHearts || 3;
           const lostDrops = maxHearts - drops;
           let stars = 3;

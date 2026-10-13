@@ -24,6 +24,7 @@ export interface PaperButtonProps extends PressableProps {
   icon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
+  subtitleStyle?: StyleProp<TextStyle>;
 }
 
 export const PaperButton: React.FC<PaperButtonProps> = ({
@@ -39,6 +40,7 @@ export const PaperButton: React.FC<PaperButtonProps> = ({
   onPressOut,
   style,
   textStyle,
+  subtitleStyle,
   ...props
 }) => {
   const { theme, mode } = useTheme();
@@ -84,32 +86,43 @@ export const PaperButton: React.FC<PaperButtonProps> = ({
 
   let bgColor = theme.primaryButton;
   let txtColor = theme.primaryButtonText;
+  let subColor = mode === 'dark' ? '#C3C0DC' : '#5B5975';
   let borderColor = theme.border;
   let bottomCreaseColor = theme.crease;
 
   if (variant === 'primary') {
     bgColor = disabled ? theme.disabledState : theme.primaryButton;
     txtColor = disabled ? theme.mutedText : theme.primaryButtonText;
+    // High contrast for primary button subtitle matching background luminance
+    subColor = disabled
+      ? theme.mutedText
+      : mode === 'dark'
+      ? 'rgba(27, 26, 46, 0.82)'
+      : 'rgba(255, 253, 248, 0.90)';
     borderColor = mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
     bottomCreaseColor = mode === 'dark' ? '#C28E25' : '#B83E1A';
   } else if (variant === 'secondary') {
     bgColor = disabled ? theme.disabledState : theme.surface;
     txtColor = disabled ? theme.mutedText : theme.primaryText;
+    subColor = disabled ? theme.mutedText : theme.secondaryText;
     borderColor = theme.border;
     bottomCreaseColor = theme.crease;
   } else if (variant === 'tag') {
     bgColor = disabled ? theme.disabledState : (mode === 'dark' ? '#322E54' : '#F5EDDF');
     txtColor = disabled ? theme.mutedText : theme.primaryText;
+    subColor = disabled ? theme.mutedText : theme.secondaryText;
     borderColor = theme.border;
     bottomCreaseColor = theme.crease;
   } else if (variant === 'danger') {
     bgColor = disabled ? theme.disabledState : theme.error;
     txtColor = '#FFFFFF';
+    subColor = 'rgba(255, 255, 255, 0.90)';
     borderColor = 'transparent';
     bottomCreaseColor = mode === 'dark' ? '#C2563C' : '#9E2C15';
   } else if (variant === 'ghost') {
     bgColor = 'transparent';
     txtColor = disabled ? theme.mutedText : theme.primaryText;
+    subColor = disabled ? theme.mutedText : theme.secondaryText;
     borderColor = 'transparent';
     bottomCreaseColor = 'transparent';
   }
@@ -156,7 +169,7 @@ export const PaperButton: React.FC<PaperButtonProps> = ({
       <View style={styles.textContainer}>
         <Text style={[styles.title, { color: txtColor }, textStyle]}>{title}</Text>
         {subtitle && (
-          <Text style={[styles.subtitle, { color: mode === 'dark' ? '#C3C0DC' : '#8A8798' }]}>
+          <Text style={[styles.subtitle, { color: subColor }, subtitleStyle]}>
             {subtitle}
           </Text>
         )}
@@ -189,10 +202,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     marginTop: 2,
-    letterSpacing: 0.8,
+    letterSpacing: 1.0,
     textTransform: 'uppercase',
   },
   tagEyelet: {

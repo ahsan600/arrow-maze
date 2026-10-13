@@ -222,7 +222,7 @@ export const HowToPlayScreen: React.FC = () => {
 
   const handlePlayNow = async () => {
     const progress = await getProgress();
-    const targetLevel = getNextIncompleteLevel(progress, 100);
+    const targetLevel = getNextIncompleteLevel(progress, 10000);
     navigation.navigate('Game', { levelId: targetLevel });
   };
 
