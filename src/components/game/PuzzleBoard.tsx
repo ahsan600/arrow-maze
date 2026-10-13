@@ -90,7 +90,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
   showInGameTutorial = false,
   hintArrowId = null,
 }) => {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
 
   // Stable callbacks: keep latest props in refs so handlers never change identity
   const onStateChangeRef = useRef(onStateChange);
@@ -439,15 +439,24 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
         style={[{ width: boardWidth, height: boardHeight }, boardAnimatedStyle]}
       >
         <View
-          style={[styles.board, { width: boardWidth, height: boardHeight }]}
+          style={[
+            styles.board,
+            {
+              width: boardWidth,
+              height: boardHeight,
+              backgroundColor: mode === 'dark' ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.94)',
+              borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.18)' : '#FFFFFF',
+              shadowOpacity: mode === 'dark' ? 0.35 : 0.16,
+            },
+          ]}
         >
           <GridBackground
             rows={maxRows}
             cols={maxCols}
             cellSize={cellSize}
             visited={visitedCells}
-            visitedColor={theme.primaryText}
-            idleColor={theme.disabledState}
+            visitedColor={mode === 'dark' ? '#64748B' : '#94A3B8'}
+            idleColor={mode === 'dark' ? '#334155' : '#CBD5E1'}
           />
 
           {state.arrows
@@ -476,7 +485,9 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
               if (!arrow || traj.path.length === 0) return null;
               
               const isFailed = failedIds[id];
-              const color = isFailed || traj.blocked ? theme.error : (traj.isHint ? theme.success : theme.primaryText);
+              const color = isFailed || traj.blocked
+                ? theme.error
+                : (traj.isHint ? theme.success : (mode === 'dark' ? '#38BDF8' : theme.primaryText));
               
               const head = arrow.cells[arrow.cells.length - 1];
               const startX = head.c * cellSize + cellSize / 2;

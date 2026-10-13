@@ -232,21 +232,21 @@ export const GameScreen: React.FC = () => {
   if (!puzzleState) return null;
 
   return (
-    <ScreenContainer useBackgroundImage={true} overlayOpacity={0.15} style={styles.container}>
+    <ScreenContainer useBackgroundImage={true} overlayOpacity={mode === 'dark' ? 0.45 : 0.15} style={styles.container}>
       {/* Top Header */}
       <View style={styles.header}>
         <IconButton
           icon="back"
           onPress={() => navigation.goBack()}
-          iconColor="#0F172A"
-          style={styles.headerCircleBtn}
+          iconColor={mode === 'dark' ? '#F8FAFC' : '#0F172A'}
+          style={[styles.headerCircleBtn, mode === 'dark' && styles.headerCircleBtnDark]}
           size={24}
         />
         
         <View style={styles.levelHeaderCenter}>
           <Text style={styles.levelTitleText}>Level {levelId}</Text>
-          <View style={styles.levelStatsPill}>
-            <Text style={styles.levelStatsText}>
+          <View style={[styles.levelStatsPill, mode === 'dark' && styles.levelStatsPillDark]}>
+            <Text style={[styles.levelStatsText, mode === 'dark' && styles.levelStatsTextDark]}>
               Failed: {failedAttempts}  •  Hints: {hintsUsed}
             </Text>
           </View>
@@ -259,13 +259,13 @@ export const GameScreen: React.FC = () => {
       
       {/* Life/Drops HUD Indicator */}
       <View style={styles.hudRow}>
-        <View style={styles.dropsPill}>
+        <View style={[styles.dropsPill, mode === 'dark' && styles.dropsPillDark]}>
           <View style={styles.dropsList}>
             {Array.from({ length: 3 }).map((_, i) => (
               <WaterDrop key={i} size={22} empty={i >= drops} />
             ))}
           </View>
-          <Text style={styles.dropsText}>{drops}/3</Text>
+          <Text style={[styles.dropsText, mode === 'dark' && styles.dropsTextDark]}>{drops}/3</Text>
         </View>
       </View>
 
@@ -285,7 +285,7 @@ export const GameScreen: React.FC = () => {
       {/* Floating Action Controls: Hint & Restart */}
       <View style={styles.floatingActions}>
         <TouchableOpacity 
-          style={styles.hintButton}
+          style={[styles.hintButton, mode === 'dark' && styles.hintButtonDark]}
           activeOpacity={0.8}
           onPress={() => {
             if (!puzzleState) return;
@@ -298,21 +298,21 @@ export const GameScreen: React.FC = () => {
             }
           }}
         >
-          <Svg width={22} height={22} viewBox="0 0 24 24" fill="#D97706">
+          <Svg width={22} height={22} viewBox="0 0 24 24" fill={mode === 'dark' ? '#FBBF24' : '#D97706'}>
             <Path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 14c-.55 0-1-.45-1-1v-2c0-.55.45-1 1-1s1 .45 1 1v2c0 .55-.45 1-1 1zm1-5h-2v-1.5c0-.83.67-1.5 1.5-1.5h.5c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1H9c0-1.66 1.34-3 3-3s3 1.34 3 3c0 1.1-.9 2-2 2v2z" />
           </Svg>
-          <Text style={styles.hintButtonText}>Hint</Text>
+          <Text style={[styles.hintButtonText, mode === 'dark' && styles.hintButtonTextDark]}>Hint</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.retryButton}
+          style={[styles.retryButton, mode === 'dark' && styles.retryButtonDark]}
           activeOpacity={0.8}
           onPress={loadLevel}
         >
-          <Svg width={20} height={20} viewBox="0 0 24 24" fill="#334155">
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill={mode === 'dark' ? '#E2E8F0' : '#334155'}>
             <Path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
           </Svg>
-          <Text style={styles.retryButtonText}>Restart</Text>
+          <Text style={[styles.retryButtonText, mode === 'dark' && styles.retryButtonTextDark]}>Restart</Text>
         </TouchableOpacity>
       </View>
 
@@ -681,5 +681,35 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 12,
     letterSpacing: 2,
+  },
+  headerCircleBtnDark: {
+    backgroundColor: 'rgba(30, 41, 59, 0.92)',
+  },
+  levelStatsPillDark: {
+    backgroundColor: 'rgba(30, 41, 59, 0.92)',
+  },
+  levelStatsTextDark: {
+    color: '#E2E8F0',
+  },
+  dropsPillDark: {
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderColor: '#0284C7',
+  },
+  dropsTextDark: {
+    color: '#38BDF8',
+  },
+  hintButtonDark: {
+    backgroundColor: 'rgba(120, 53, 15, 0.45)',
+    borderColor: '#F59E0B',
+  },
+  hintButtonTextDark: {
+    color: '#FDE68A',
+  },
+  retryButtonDark: {
+    backgroundColor: 'rgba(30, 41, 59, 0.92)',
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  retryButtonTextDark: {
+    color: '#E2E8F0',
   },
 });
