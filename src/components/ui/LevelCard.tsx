@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, Pressable, View } from 'react-native';
+import { Text, Pressable, View, StyleSheet } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -7,13 +7,12 @@ import Animated, {
   withRepeat,
   withSequence,
 } from 'react-native-reanimated';
-import { StarsDisplay } from './StarsDisplay';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
+import { PaperCard } from '../cards/PaperCard';
+import { OrigamiStar } from './StarsDisplay';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-interface LevelCardProps {
+export interface LevelCardProps {
   level: number;
   locked: boolean;
   completed: boolean;
@@ -23,15 +22,30 @@ interface LevelCardProps {
   className?: string;
 }
 
-const LockIcon = () => (
-  <Svg width={24} height={24} viewBox="0 0 24 24" fill="#94a3b8">
-    <Path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+/** Paper clip lock icon for locked tiles */
+const PaperClipLock = ({ color }: { color: string }) => (
+  <Svg width={20} height={20} viewBox="0 0 24 24">
+    <Path
+      d="M 16 7 L 16 11 M 8 11 L 8 7 C 8 4.8 9.8 3 12 3 C 14.2 3 16 4.8 16 7 L 16 11 M 6 11 L 18 11 C 19.1 11 20 11.9 20 13 L 20 19 C 20 20.1 19.1 21 18 21 L 6 21 C 4.9 21 4 20.1 4 19 L 4 13 C 4 11.9 4.9 11 6 11 Z"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
   </Svg>
 );
 
-const CheckIcon = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-    <Path d="M20 6L9 17l-5-5" />
+/** Origami Paper Plane Icon for active/current tile */
+const PaperPlaneIcon = ({ color }: { color: string }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24">
+    <Path
+      d="M 2 12 L 22 2 L 12 22 L 10 14 Z M 10 14 L 22 2"
+      fill={color}
+      stroke={color}
+      strokeWidth={1.5}
+      strokeLinejoin="round"
+    />
   </Svg>
 );
 
@@ -43,8 +57,10 @@ export const LevelCard: React.FC<LevelCardProps> = ({
   bestScore = 0,
   onPress,
 }) => {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const scale = useSharedValue(1);
+
+  const isMilestone = level % 10 === 0;
 
   React.useEffect(() => {
     if (current) {
@@ -62,56 +78,35 @@ export const LevelCard: React.FC<LevelCardProps> = ({
   }, [current, scale]);
 
   const handlePressIn = () => {
-    if (!locked && !current) scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
+    if (!locked) scale.value = withSpring(0.94, { damping: 15, stiffness: 300 });
   };
 
   const handlePressOut = () => {
-    if (!locked && !current) scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+    if (!locked) scale.value = withSpring(1, { damping: 15, stiffness: 300 });
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  let bgColor = theme.cardBackground;
-  let txtColor = theme.primaryText;
+  // Card coloring
+  let cardBg = theme.surface;
+  let textColor = theme.primaryText;
   let borderColor = theme.border;
-  let borderWidth = 1;
-  let opacity = 1;
-  let extraStyles: any = {};
 
   if (locked) {
-    bgColor = 'transparent';
-    borderColor = theme.border;
-    opacity = 0.5;
+    cardBg = mode === 'dark' ? '#201E35' : '#ECE4D4';
+    textColor = theme.mutedText;
   } else if (current) {
-    bgColor = theme.primaryText;
-    txtColor = theme.appBackground;
-    borderColor = theme.primaryText;
-    borderWidth = 1;
-    extraStyles = {
-      shadowColor: theme.primaryText,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 8,
-      elevation: 6,
-      borderBottomWidth: 4,
-    };
+    cardBg = theme.primary; // vermilion / gold
+    textColor = mode === 'dark' ? '#1B1A2E' : '#FFFDF8';
+    borderColor = mode === 'dark' ? '#F6EFE4' : '#C23D17';
   } else if (completed) {
-    bgColor = theme.cardBackground;
-    borderColor = theme.border;
-    borderWidth = 1;
-    extraStyles = {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 4,
-      elevation: 2,
-      borderBottomWidth: 3,
-    };
+    cardBg = theme.surface;
+    textColor = theme.primaryText;
   }
 
-  const isPerfect = completed && bestScore === 3;
+  const starCount = bestScore > 0 ? bestScore : 3;
 
   return (
     <Pressable
@@ -119,31 +114,130 @@ export const LevelCard: React.FC<LevelCardProps> = ({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={locked}
-      style={{
-        width: 80,
-        height: 96,
-        borderRadius: 20,
-        padding: 8,
-        margin: 8,
-        backgroundColor: bgColor,
-        borderColor,
-        borderWidth,
-        opacity,
-        ...extraStyles,
-      }}
+      style={styles.pressable}
     >
-      <Animated.View style={[animatedStyle, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}>
-        {locked ? (
-          <LockIcon />
-        ) : (
-          <>
-            <Text style={{ fontSize: 26, fontWeight: current ? '900' : '800', marginBottom: completed ? 8 : 0, color: txtColor, letterSpacing: -0.5 }}>{level}</Text>
-            {completed ? (
-              <StarsDisplay stars={bestScore > 0 ? bestScore : 3} size={12} />
-            ) : null}
-          </>
-        )}
+      <Animated.View style={[{ width: '100%', height: '100%' }, animatedStyle]}>
+        <PaperCard
+          dogEar={!locked}
+          dogEarSize={16}
+          radiusSize="md"
+          flat={locked}
+          style={[
+            styles.card,
+            {
+              backgroundColor: cardBg,
+              borderColor,
+              borderBottomWidth: current ? 3.5 : 2,
+              borderBottomColor: current ? (mode === 'dark' ? '#C28E25' : '#B83E1A') : theme.crease,
+            },
+          ]}
+        >
+          {/* Milestone paper ribbon badge */}
+          {isMilestone && (
+            <View style={styles.milestoneRibbon}>
+              <Text style={styles.milestoneText}>★10</Text>
+            </View>
+          )}
+
+          <View style={styles.innerContent}>
+            {locked ? (
+              <View style={styles.lockedContainer}>
+                <PaperClipLock color={theme.mutedText} />
+                <Text style={[styles.lockedNumber, { color: theme.mutedText }]}>{level}</Text>
+              </View>
+            ) : current ? (
+              <View style={styles.currentContainer}>
+                <View style={styles.planeWrapper}>
+                  <PaperPlaneIcon color={textColor} />
+                </View>
+                <Text style={[styles.levelNumber, { color: textColor }]}>{level}</Text>
+              </View>
+            ) : (
+              <View style={styles.completedContainer}>
+                <Text style={[styles.levelNumber, { color: textColor }]}>{level}</Text>
+                {completed && (
+                  <View style={styles.starsRow}>
+                    {[0, 1, 2].map(i => (
+                      <OrigamiStar
+                        key={i}
+                        active={i < starCount}
+                        size={12}
+                        fillColor={theme.goldStar}
+                        disabledColor={theme.disabledState}
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </PaperCard>
       </Animated.View>
     </Pressable>
   );
 };
+
+const styles = StyleSheet.create({
+  pressable: {
+    width: 76,
+    height: 94,
+    margin: 6,
+  },
+  card: {
+    flex: 1,
+    padding: 6,
+  },
+  innerContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  milestoneRibbon: {
+    position: 'absolute',
+    top: 2,
+    left: 4,
+    backgroundColor: '#E4572E',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    zIndex: 5,
+  },
+  milestoneText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#FFFDF8',
+  },
+  lockedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  lockedNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  currentContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  planeWrapper: {
+    marginBottom: 2,
+  },
+  completedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  levelNumber: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    gap: 2,
+  },
+});

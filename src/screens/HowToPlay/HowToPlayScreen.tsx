@@ -1,13 +1,25 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, Dimensions, FlatList, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Svg, { Path, Rect, Circle, Line, G } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { IconButton } from '../../components/ui/IconButton';
-import { ImageButton } from '../../components/ui/ImageButton';
-import { Button } from '../../components/ui/Button';
+import { PaperButton } from '../../components/buttons/PaperButton';
+import { PaperCard } from '../../components/cards/PaperCard';
+import { WaterDrop } from '../../components/icons/WaterDrop';
+import { OrigamiStar } from '../../components/ui/StarsDisplay';
 import { getProgress } from '../../storage/gameStorage';
 import { getNextIncompleteLevel } from '../../game/logic/levelLogic';
+import { useTheme } from '../../theme/ThemeContext';
 
 type RootStackParamList = {
   Home: undefined;
@@ -17,8 +29,196 @@ type RootStackParamList = {
 
 type HowToPlayNavigationProp = NativeStackNavigationProp<RootStackParamList, 'HowToPlay'>;
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const PAGE_WIDTH = SCREEN_WIDTH - 32;
+
+/**
+ * Animated Looped Demos for each booklet page
+ */
+
+// Demo 1: Arrow sliding off board
+const DemoSlideLaunch = ({ theme, mode }: { theme: any; mode: any }) => {
+  const transX = useSharedValue(0);
+  const opacity = useSharedValue(1);
+
+  React.useEffect(() => {
+    transX.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 600 }),
+        withTiming(110, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+        withTiming(110, { duration: 400 }),
+      ),
+      -1,
+      false,
+    );
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1100 }),
+        withTiming(0, { duration: 400 }),
+        withTiming(1, { duration: 400 }),
+      ),
+      -1,
+      false,
+    );
+  }, [transX, opacity]);
+
+  const arrowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: transX.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <View style={styles.demoBoardContainer}>
+      <PaperCard dogEar={false} radiusSize="md" style={styles.miniBoard}>
+        {/* Faint fold lines */}
+        <Svg width={180} height={120} viewBox="0 0 180 120">
+          <Line x1="60" y1="0" x2="60" y2="120" stroke={theme.crease} strokeWidth="1" strokeDasharray="3 3" />
+          <Line x1="120" y1="0" x2="120" y2="120" stroke={theme.crease} strokeWidth="1" strokeDasharray="3 3" />
+          <Line x1="0" y1="60" x2="180" y2="60" stroke={theme.crease} strokeWidth="1" strokeDasharray="3 3" />
+        </Svg>
+
+        {/* Animated gliding arrow */}
+        <Animated.View style={[styles.demoArrowPosition, arrowStyle]}>
+          <Svg width={54} height={24} viewBox="0 0 54 24">
+            <Path d="M 0 12 L 36 12" stroke={theme.arrow} strokeWidth={8} strokeLinecap="round" />
+            <Path d="M 32 4 L 48 12 L 32 20 Z" fill={theme.arrow} />
+            <Path d="M 32 12 L 48 12" stroke="rgba(255,255,255,0.5)" strokeWidth={1.2} />
+          </Svg>
+        </Animated.View>
+      </PaperCard>
+    </View>
+  );
+};
+
+// Demo 2: Blocked arrow flutter shake with red ink X
+const DemoBlockedFlutter = ({ theme }: { theme: any }) => {
+  const shakeX = useSharedValue(0);
+  const stampOpacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    shakeX.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 800 }),
+        withTiming(6, { duration: 60 }),
+        withTiming(-6, { duration: 60 }),
+        withTiming(4, { duration: 50 }),
+        withTiming(0, { duration: 50 }),
+        withTiming(0, { duration: 800 }),
+      ),
+      -1,
+      false,
+    );
+    stampOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: 800 }),
+        withTiming(1, { duration: 100 }),
+        withTiming(1, { duration: 500 }),
+        withTiming(0, { duration: 200 }),
+        withTiming(0, { duration: 400 }),
+      ),
+      -1,
+      false,
+    );
+  }, [shakeX, stampOpacity]);
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  const stampStyle = useAnimatedStyle(() => ({
+    opacity: stampOpacity.value,
+  }));
+
+  return (
+    <View style={styles.demoBoardContainer}>
+      <PaperCard dogEar={false} radiusSize="md" style={styles.miniBoard}>
+        {/* Stationary obstacle arrow */}
+        <View style={{ position: 'absolute', right: 30, top: 40 }}>
+          <Svg width={24} height={48} viewBox="0 0 24 48">
+            <Path d="M 12 48 L 12 12" stroke={theme.mutedText} strokeWidth={8} strokeLinecap="round" />
+            <Path d="M 4 16 L 12 0 L 20 16 Z" fill={theme.mutedText} />
+          </Svg>
+        </View>
+
+        {/* Shaking blocked arrow */}
+        <Animated.View style={[{ position: 'absolute', left: 30, top: 50 }, shakeStyle]}>
+          <Svg width={54} height={24} viewBox="0 0 54 24">
+            <Path d="M 0 12 L 36 12" stroke={theme.error} strokeWidth={8} strokeLinecap="round" />
+            <Path d="M 32 4 L 48 12 L 32 20 Z" fill={theme.error} />
+          </Svg>
+        </Animated.View>
+
+        {/* Popping red ink stamp X */}
+        <Animated.View style={[{ position: 'absolute', left: 66, top: 44 }, stampStyle]}>
+          <Svg width={28} height={28} viewBox="0 0 28 28">
+            <Line x1="6" y1="6" x2="22" y2="22" stroke={theme.hanko} strokeWidth={3.5} strokeLinecap="round" />
+            <Line x1="22" y1="6" x2="6" y2="22" stroke={theme.hanko} strokeWidth={3.5} strokeLinecap="round" />
+          </Svg>
+        </Animated.View>
+      </PaperCard>
+    </View>
+  );
+};
+
+// Demo 3: Hanko stamps showcase
+const DemoHankoLives = ({ theme }: { theme: any }) => (
+  <View style={styles.demoBoardContainer}>
+    <PaperCard dogEar={false} radiusSize="md" style={[styles.miniBoard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 }]}>
+      <WaterDrop size={34} empty={false} />
+      <WaterDrop size={34} empty={false} />
+      <WaterDrop size={34} empty={true} />
+    </PaperCard>
+  </View>
+);
+
+// Demo 4: Hint highlighter underline
+const DemoHintHighlight = ({ theme }: { theme: any }) => (
+  <View style={styles.demoBoardContainer}>
+    <PaperCard dogEar={false} radiusSize="md" style={styles.miniBoard}>
+      {/* Yellow highlighter underline strip */}
+      <View style={[styles.highlighterDemoStrip, { backgroundColor: 'rgba(242, 177, 52, 0.45)', borderColor: theme.warning }]} />
+      {/* Stitch trajectory line */}
+      <Svg width={180} height={120} viewBox="0 0 180 120" style={StyleSheet.absoluteFill}>
+        <Line x1="30" y1="60" x2="160" y2="60" stroke={theme.success} strokeWidth="3" strokeDasharray="5 4" />
+      </Svg>
+      <View style={{ position: 'absolute', left: 35, top: 48 }}>
+        <Svg width={54} height={24} viewBox="0 0 54 24">
+          <Path d="M 0 12 L 36 12" stroke={theme.arrow} strokeWidth={8} strokeLinecap="round" />
+          <Path d="M 32 4 L 48 12 L 32 20 Z" fill={theme.arrow} />
+        </Svg>
+      </View>
+    </PaperCard>
+  </View>
+);
+
 export const HowToPlayScreen: React.FC = () => {
   const navigation = useNavigation<HowToPlayNavigationProp>();
+  const { theme, mode } = useTheme();
+  const [currentPage, setCurrentPage] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
+
+  const pages = [
+    {
+      title: 'Move the Arrows',
+      desc: 'Tap an arrow to send it gliding along its crease. As it clears the board, it folds into a paper plane!',
+      component: <DemoSlideLaunch theme={theme} mode={mode} />,
+    },
+    {
+      title: 'Avoid Collisions',
+      desc: 'Arrows cannot cross stationary pieces. A collision causes a paper flutter shake and loses 1 Hanko stamp!',
+      component: <DemoBlockedFlutter theme={theme} />,
+    },
+    {
+      title: 'Hanko Life Stamps',
+      desc: 'You start with 3 red Hanko ink stamps. Keep all your stamps to claim a perfect 3-star Origami Certificate!',
+      component: <DemoHankoLives theme={theme} />,
+    },
+    {
+      title: 'Highlighter Hints',
+      desc: 'Stuck on a tricky labyrinth? Tap the Hint button to illuminate the open path with sewing thread stitches.',
+      component: <DemoHintHighlight theme={theme} />,
+    },
+  ];
 
   const handlePlayNow = async () => {
     const progress = await getProgress();
@@ -26,94 +226,91 @@ export const HowToPlayScreen: React.FC = () => {
     navigation.navigate('Game', { levelId: targetLevel });
   };
 
+  const handleScroll = (e: any) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / PAGE_WIDTH);
+    if (index >= 0 && index < pages.length) {
+      setCurrentPage(index);
+    }
+  };
+
   return (
-    <ScreenContainer useBackgroundImage={true} overlayOpacity={0.4} style={styles.container}>
+    <ScreenContainer style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <IconButton
           icon="back"
           onPress={() => navigation.goBack()}
-          iconColor="#FFFFFF"
-          style={styles.backButton}
+          iconColor={theme.primaryText}
+          style={[styles.backBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
         />
-        <Text style={styles.headerTitle}>HOW TO PLAY</Text>
+        <Text style={[styles.headerTitle, { color: theme.primaryText }]}>ORIGAMI GUIDE</Text>
         <View style={{ width: 44 }} />
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.badgeContainer}>
-          <Text style={styles.badgeText}>GAME RULES & GUIDE</Text>
-        </View>
+      {/* Horizontal Booklet Pager */}
+      <View style={{ flex: 1 }}>
+        <FlatList
+          ref={flatListRef}
+          data={pages}
+          keyExtractor={(_, i) => i.toString()}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          renderItem={({ item, index }) => (
+            <View style={[styles.pageWrapper, { width: PAGE_WIDTH }]}>
+              <PaperCard dogEar={true} radiusSize="lg" style={styles.bookletPageCard}>
+                {/* Page index stamp */}
+                <View style={[styles.pageNumberBadge, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                  <Text style={[styles.pageNumberText, { color: theme.primary }]}>PAGE {index + 1} / 4</Text>
+                </View>
 
-        <View style={styles.card}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.iconText}>1</Text>
-          </View>
-          <View style={styles.cardTextContent}>
-            <Text style={styles.cardTitle}>Move the Arrows</Text>
-            <Text style={styles.cardDescription}>
-              Tap an arrow to send it flying forward. The arrow travels continuously along its path until it completely leaves the grid!
-            </Text>
-          </View>
-        </View>
+                {/* Looped Animated Demo Canvas */}
+                {item.component}
 
-        <View style={styles.card}>
-          <View style={[styles.iconCircle, { backgroundColor: '#ef4444' }]}>
-            <Text style={styles.iconText}>2</Text>
-          </View>
-          <View style={styles.cardTextContent}>
-            <Text style={styles.cardTitle}>Avoid Collisions</Text>
-            <Text style={styles.cardDescription}>
-              Arrows cannot pass through stationary arrows. If an arrow's flight path is blocked, it shakes and you lose 1 water drop!
-            </Text>
-          </View>
-        </View>
+                {/* Descriptive Copy */}
+                <Text style={[styles.pageTitle, { color: theme.primaryText }]}>{item.title}</Text>
+                <Text style={[styles.pageDesc, { color: theme.secondaryText }]}>{item.desc}</Text>
+              </PaperCard>
+            </View>
+          )}
+        />
+      </View>
 
-        <View style={styles.card}>
-          <View style={[styles.iconCircle, { backgroundColor: '#22c55e' }]}>
-            <Text style={styles.iconText}>3</Text>
-          </View>
-          <View style={styles.cardTextContent}>
-            <Text style={styles.cardTitle}>Clear the Board</Text>
-            <Text style={styles.cardDescription}>
-              Carefully find the correct sequence to free all arrows. Keep all your drops to earn a perfect 3-star rating!
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={[styles.iconCircle, { backgroundColor: '#f59e0b' }]}>
-            <Text style={styles.iconText}>💡</Text>
-          </View>
-          <View style={styles.cardTextContent}>
-            <Text style={styles.cardTitle}>Use Helpful Hints</Text>
-            <Text style={styles.cardDescription}>
-              Stuck on a tricky maze? Tap the lightbulb hint icon on the bottom right to illuminate the next arrow with a clear path.
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.actionContainer}>
-          <ImageButton
-            source={require('../../assets/playbutton.png')}
-            onPress={handlePlayNow}
-            aspectRatio={2111 / 745}
-            maxWidth={260}
-            accessibilityLabel="Play Game Now"
-            style={styles.playButton}
+      {/* Booklet Dot Indicators (Tiny Paper Circles) */}
+      <View style={styles.dotsRow}>
+        {pages.map((_, i) => (
+          <TouchableOpacity
+            key={i}
+            onPress={() => flatListRef.current?.scrollToIndex({ index: i, animated: true })}
+            style={[
+              styles.dotCircle,
+              {
+                backgroundColor: i === currentPage ? theme.primary : theme.disabledState,
+                width: i === currentPage ? 20 : 8,
+              },
+            ]}
           />
-          <Button
-            title="GOT IT, RETURN HOME"
-            variant="ghost"
-            onPress={() => navigation.goBack()}
-            style={styles.returnButton}
-            textClassName="text-white"
-          />
-        </View>
-      </ScrollView>
+        ))}
+      </View>
+
+      {/* Bottom Action Button */}
+      <View style={styles.bottomAction}>
+        <PaperButton
+          title={currentPage === 3 ? "Got It, Let's Play!" : "Next Page"}
+          variant="primary"
+          radiusSize="md"
+          fullWidth
+          onPress={() => {
+            if (currentPage < 3) {
+              flatListRef.current?.scrollToIndex({ index: currentPage + 1, animated: true });
+            } else {
+              handlePlayNow();
+            }
+          }}
+        />
+      </View>
     </ScreenContainer>
   );
 };
@@ -126,97 +323,104 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    marginTop: 8,
+    paddingTop: 8,
+    paddingBottom: 12,
+    zIndex: 10,
   },
-  backButton: {
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  backBtn: {
     borderRadius: 22,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(0, 0, 0, 0.6)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingVertical: 16,
-    paddingBottom: 40,
-  },
-  badgeContainer: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
     letterSpacing: 2,
   },
-  card: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 14,
-    alignItems: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3b82f6',
+  pageWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
-    marginTop: 2,
-  },
-  iconText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  cardTextContent: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  cardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#4b5563',
-    fontWeight: '500',
-  },
-  actionContainer: {
-    marginTop: 20,
-    alignItems: 'center',
-    width: '100%',
-  },
-  playButton: {
-    marginBottom: 12,
-  },
-  returnButton: {
     paddingVertical: 10,
+  },
+  bookletPageCard: {
+    width: '100%',
+    padding: 20,
+    alignItems: 'center',
+  },
+  pageNumberBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  pageNumberText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  demoBoardContainer: {
+    width: '100%',
+    height: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+  },
+  miniBoard: {
+    width: 200,
+    height: 130,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  demoArrowPosition: {
+    position: 'absolute',
+    left: 20,
+    top: 50,
+  },
+  highlighterDemoStrip: {
+    position: 'absolute',
+    left: 25,
+    top: 42,
+    width: 80,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+  },
+  pageTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 14,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  pageDesc: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 21,
+    paddingHorizontal: 8,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginVertical: 14,
+  },
+  dotCircle: {
+    height: 8,
+    borderRadius: 4,
+  },
+  bottomAction: {
+    paddingBottom: 24,
+    width: '100%',
   },
 });

@@ -1,19 +1,79 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, LayoutAnimation, StyleSheet, Image } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Svg, { Line, Pattern, Rect, Defs, Circle, Path, G } from 'react-native-svg';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { IconButton } from '../../components/ui/IconButton';
+import { PaperCard } from '../../components/cards/PaperCard';
 import { getProgress, setProgress as saveProgress } from '../../storage/gameStorage';
 import { GameProgress } from '../../types/game.types';
 import { useTheme } from '../../theme/ThemeContext';
 import { ThemeMode } from '../../theme/types';
-import Svg, { Path, Circle } from 'react-native-svg';
+
+/**
+ * Sun & Moon Paper Cut-Out Switch
+ * Day: Golden paper sun cut-out
+ * Night: Origami crescent moon and star
+ */
+const SunMoonSwitch = ({ mode, onToggle, theme }: { mode: 'white' | 'dark'; onToggle: (m: ThemeMode) => void; theme: any }) => {
+  return (
+    <View style={styles.sunMoonContainer}>
+      <TouchableOpacity
+        onPress={() => onToggle('white')}
+        style={[
+          styles.switchTab,
+          mode === 'white' && styles.switchTabActive,
+          {
+            backgroundColor: mode === 'white' ? theme.surface : 'transparent',
+            borderColor: mode === 'white' ? theme.primary : 'transparent',
+          },
+        ]}
+        activeOpacity={0.8}
+      >
+        <Svg width={20} height={20} viewBox="0 0 24 24">
+          <Circle cx={12} cy={12} r={6} fill={mode === 'white' ? theme.primary : theme.mutedText} />
+          <Path
+            d="M 12 2 L 12 4 M 12 20 L 12 22 M 2 12 L 4 12 M 20 12 L 22 12 M 5 5 L 6.5 6.5 M 17.5 17.5 L 19 19 M 5 19 L 6.5 17.5 M 17.5 6.5 L 19 5"
+            stroke={mode === 'white' ? theme.primary : theme.mutedText}
+            strokeWidth={2}
+            strokeLinecap="round"
+          />
+        </Svg>
+        <Text style={[styles.switchTabText, { color: mode === 'white' ? theme.primaryText : theme.mutedText }]}>
+          Washi Day
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => onToggle('dark')}
+        style={[
+          styles.switchTab,
+          mode === 'dark' && styles.switchTabActive,
+          {
+            backgroundColor: mode === 'dark' ? theme.surface : 'transparent',
+            borderColor: mode === 'dark' ? theme.primary : 'transparent',
+          },
+        ]}
+        activeOpacity={0.8}
+      >
+        <Svg width={20} height={20} viewBox="0 0 24 24">
+          <Path
+            d="M 15 4 C 10 5 6 10 7 16 C 8 20 12 23 17 22 C 11 22 7 17 7 11 C 7 6 11 4 15 4 Z"
+            fill={mode === 'dark' ? theme.primary : theme.mutedText}
+          />
+        </Svg>
+        <Text style={[styles.switchTabText, { color: mode === 'dark' ? theme.primaryText : theme.mutedText }]}>
+          Night Kraft
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { mode, theme, setMode } = useTheme();
   const [progress, setProgress] = useState<GameProgress | null>(null);
-  const [showPalette, setShowPalette] = useState(false);
 
   const loadProgress = useCallback(async () => {
     const data = await getProgress();
@@ -43,157 +103,214 @@ export const SettingsScreen: React.FC = () => {
     }
   }, [progress, setMode]);
 
-  const handleTogglePalette = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setShowPalette(!showPalette);
-  };
-
   if (!progress) return null;
 
-  const cardBg = mode === 'dark' ? 'rgba(24, 24, 27, 0.9)' : 'rgba(255, 255, 255, 0.92)';
-
   return (
-    <ScreenContainer useBackgroundImage={true} overlayOpacity={0.4}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 16, paddingBottom: 16, paddingHorizontal: 8 }}>
-        <IconButton 
-          icon="back" 
-          onPress={() => navigation.goBack()} 
-          iconColor="#FFFFFF"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 22 }}
-        />
-        <Image
-          source={require('../../assets/settingButton.png')}
-          style={{ width: 36, height: 36, marginLeft: 14, marginRight: 8 }}
-          resizeMode="contain"
-        />
-        <Text style={{ fontSize: 24, fontWeight: '900', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }}>
-          Settings
-        </Text>
+    <ScreenContainer style={styles.container}>
+      {/* Notebook Ruled-Line Faint Background */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <Pattern id="notebookLines" width="100%" height="28" patternUnits="userSpaceOnUse">
+              <Line x1="0" y1="28" x2="100%" y2="28" stroke={theme.crease} strokeWidth="1" opacity={0.4} />
+            </Pattern>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#notebookLines)" />
+        </Svg>
       </View>
 
-      <ScrollView style={{ flex: 1, paddingTop: 12 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* Main Settings Group */}
-        <View style={{ backgroundColor: cardBg, borderRadius: 20, marginBottom: 24, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 }}>
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.divider, marginLeft: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, marginRight: 16 }}>🔊</Text>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: theme.primaryText }}>Sound</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <IconButton
+          icon="back"
+          onPress={() => navigation.goBack()}
+          iconColor={theme.primaryText}
+          style={[styles.backBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        />
+        <Text style={[styles.headerTitle, { color: theme.primaryText }]}>CRAFT NOTEBOOK</Text>
+        <View style={{ width: 44 }} />
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Section 1: Audio & Haptics (Paper Pull-Tabs) */}
+        <Text style={[styles.sectionHeading, { color: theme.primary }]}>PHYSICAL SENSATIONS</Text>
+
+        <PaperCard dogEar={true} radiusSize="md" style={styles.settingsCard}>
+          {/* Sound Toggle */}
+          <View style={styles.settingRow}>
+            <View style={styles.labelCol}>
+              <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Paper Swish Sounds</Text>
+              <Text style={[styles.settingSub, { color: theme.mutedText }]}>Soft sliding paper fold audio</Text>
             </View>
-            <Switch 
-              value={progress.soundEnabled} 
-              onValueChange={(val) => toggleSetting('soundEnabled', val)}
-              trackColor={{ false: theme.disabledState, true: theme.primaryText }}
-              thumbColor={theme.appBackground}
-              style={{ marginRight: 20 }}
+            <Switch
+              value={progress.soundEnabled}
+              onValueChange={val => toggleSetting('soundEnabled', val)}
+              trackColor={{ false: theme.disabledState, true: theme.primary }}
+              thumbColor={theme.surface}
             />
           </View>
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.divider, marginLeft: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, marginRight: 16 }}>📳</Text>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: theme.primaryText }}>Vibration</Text>
+
+          <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
+
+          {/* Haptics Toggle */}
+          <View style={styles.settingRow}>
+            <View style={styles.labelCol}>
+              <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Tactile Haptics</Text>
+              <Text style={[styles.settingSub, { color: theme.mutedText }]}>Gentle cardstock tap vibration</Text>
             </View>
-            <Switch 
-              value={progress.hapticsEnabled} 
-              onValueChange={(val) => toggleSetting('hapticsEnabled', val)}
-              trackColor={{ false: theme.disabledState, true: theme.primaryText }}
-              thumbColor={theme.appBackground}
-              style={{ marginRight: 20 }}
+            <Switch
+              value={progress.hapticsEnabled}
+              onValueChange={val => toggleSetting('hapticsEnabled', val)}
+              trackColor={{ false: theme.disabledState, true: theme.primary }}
+              thumbColor={theme.surface}
             />
           </View>
+        </PaperCard>
 
-          <TouchableOpacity 
-            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, marginLeft: 20 }}
-            onPress={handleTogglePalette}
-            activeOpacity={0.7}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, marginRight: 16 }}>🎨</Text>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: theme.primaryText }}>Color Palette</Text>
-            </View>
-            <Text style={{ color: theme.primaryText, fontSize: 24, fontWeight: '300', marginRight: 20, transform: [{ rotate: showPalette ? '90deg' : '0deg' }] }}>
-              ›
-            </Text>
-          </TouchableOpacity>
+        {/* Section 2: Color Palette (Sun / Moon Switch) */}
+        <Text style={[styles.sectionHeading, { color: theme.primary, marginTop: 22 }]}>PAPER SHADE</Text>
 
-          {showPalette && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, paddingTop: 16, borderTopWidth: 1, borderTopColor: theme.divider, justifyContent: 'space-around', paddingBottom: 8 }}>
-              
-              <View style={{ alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity 
-                  onPress={() => toggleTheme('dark')}
-                  style={{ width: 80, height: 100, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: mode === 'dark' ? theme.primaryText : 'transparent', backgroundColor: '#000000', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}
-                >
-                  <View style={{ width: '80%', height: '40%', backgroundColor: '#111111', borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#333333' }} />
-                  <View style={{ width: '60%', height: 4, backgroundColor: '#ffffff', borderRadius: 2, marginBottom: 4 }} />
-                  <View style={{ width: '40%', height: 4, backgroundColor: '#a3a3a3', borderRadius: 2 }} />
-                  {mode === 'dark' && (
-                    <View style={{ position: 'absolute', bottom: -8, right: -8, backgroundColor: theme.primaryText, borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={theme.appBackground} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <Path d="M20 6L9 17l-5-5" />
-                      </Svg>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: theme.primaryText, marginTop: 8 }}>Dark Mode</Text>
-              </View>
+        <PaperCard dogEar={false} radiusSize="md" style={styles.settingsCard}>
+          <Text style={[styles.settingSub, { color: theme.mutedText, marginBottom: 12 }]}>
+            Choose between warm handmade day washi and deep night kraft paper.
+          </Text>
+          <SunMoonSwitch mode={mode} onToggle={toggleTheme} theme={theme} />
+        </PaperCard>
 
-              <View style={{ width: 1, height: 40, backgroundColor: theme.divider }} />
+        {/* Section 3: Game Information */}
+        <Text style={[styles.sectionHeading, { color: theme.primary, marginTop: 22 }]}>ABOUT THIS CRAFT</Text>
 
-              <View style={{ alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity 
-                  onPress={() => toggleTheme('white')}
-                  style={{ width: 80, height: 100, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: mode === 'white' ? theme.primaryText : 'transparent', backgroundColor: '#ffffff', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}
-                >
-                  <View style={{ width: '80%', height: '40%', backgroundColor: '#f5f5f5', borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#e5e5e5' }} />
-                  <View style={{ width: '60%', height: 4, backgroundColor: '#000000', borderRadius: 2, marginBottom: 4 }} />
-                  <View style={{ width: '40%', height: 4, backgroundColor: '#525252', borderRadius: 2 }} />
-                  {mode === 'white' && (
-                    <View style={{ position: 'absolute', bottom: -8, right: -8, backgroundColor: theme.primaryText, borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' }}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={theme.appBackground} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <Path d="M20 6L9 17l-5-5" />
-                      </Svg>
-                    </View>
-                  )}
-                </TouchableOpacity>
-                <Text style={{ fontSize: 14, fontWeight: '500', color: theme.primaryText, marginTop: 8 }}>White Mode</Text>
-              </View>
+        <PaperCard dogEar={false} radiusSize="md" style={styles.settingsCard}>
+          <View style={styles.infoRow}>
+            <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Total Crafted Puzzles</Text>
+            <Text style={[styles.infoValue, { color: theme.primary }]}>100 Levels</Text>
+          </View>
+          <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
+          <View style={styles.infoRow}>
+            <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Origami Engine</Text>
+            <Text style={[styles.infoValue, { color: theme.primaryText }]}>v1.0 Paper Edition</Text>
+          </View>
+        </PaperCard>
 
-            </View>
-          )}
+        {/* Stamped craft footer */}
+        <View style={styles.footerStamp}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" style={{ marginRight: 6 }}>
+            <Path d="M 12 2 L 15 9 L 22 9 L 17 14 L 19 21 L 12 17 L 5 21 L 7 14 L 2 9 L 9 9 Z" fill={theme.primary} />
+          </Svg>
+          <Text style={[styles.footerText, { color: theme.mutedText }]}>
+            Arrow Amaze Go • Handcrafted Origami
+          </Text>
         </View>
-
-        {/* Action Group 1 */}
-        <View style={{ backgroundColor: cardBg, borderRadius: 20, marginBottom: 24, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 }}>
-          <TouchableOpacity style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, marginRight: 16 }}>👤</Text>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: theme.primaryText }}>Save Your Progress</Text>
-            </View>
-            <Text style={{ color: theme.primaryText, fontSize: 24, fontWeight: '300', marginRight: 8 }}>›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Action Group 2 */}
-        <View style={{ backgroundColor: cardBg, borderRadius: 20, marginBottom: 24, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 }}>
-          <TouchableOpacity style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.divider }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, marginRight: 16 }}>👍</Text>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: theme.primaryText }}>Rate Us</Text>
-            </View>
-            <Text style={{ color: theme.primaryText, fontSize: 24, fontWeight: '300', marginRight: 8 }}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 20, marginRight: 16 }}>💬</Text>
-              <Text style={{ fontSize: 18, fontWeight: '500', color: theme.primaryText }}>Feedback</Text>
-            </View>
-            <Text style={{ color: theme.primaryText, fontSize: 24, fontWeight: '300', marginRight: 8 }}>›</Text>
-          </TouchableOpacity>
-        </View>
-
       </ScrollView>
     </ScreenContainer>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    paddingBottom: 16,
+    zIndex: 10,
+  },
+  backBtn: {
+    borderRadius: 22,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  sectionHeading: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  settingsCard: {
+    padding: 16,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  labelCol: {
+    flex: 1,
+    marginRight: 12,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  settingSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  cardDivider: {
+    height: 1,
+    marginVertical: 10,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  sunMoonContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  switchTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  switchTabActive: {
+    borderTopWidth: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  switchTabText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  footerStamp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 32,
+  },
+  footerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+});

@@ -6,126 +6,183 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, G } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 
 interface GameLogoProps {
   horizontal?: boolean;
 }
 
+/**
+ * Origami Paper Craft Logo
+ * Features a 3D folded paper arrow crest and layered paper cut-out typography.
+ */
 export const GameLogo: React.FC<GameLogoProps> = React.memo(({ horizontal = false }) => {
-  const { theme } = useTheme();
-  const translateY = useSharedValue(0);
+  const { theme, mode } = useTheme();
+  const floatY = useSharedValue(0);
 
   React.useEffect(() => {
-    translateY.value = withRepeat(
+    floatY.value = withRepeat(
       withSequence(
-        withTiming(-3, { duration: 1200 }),
-        withTiming(0, { duration: 1200 })
+        withTiming(-4, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.ease) }),
       ),
       -1,
-      true
+      true,
     );
-  }, [translateY]);
+  }, [floatY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    transform: [{ translateY: floatY.value }],
   }));
+
+  // Folded origami arrow badge
+  const renderOrigamiArrowBadge = (size: number) => {
+    return (
+      <View
+        style={[
+          styles.badgeCard,
+          {
+            width: size,
+            height: size,
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            borderTopColor: theme.creaseHighlight,
+            shadowColor: theme.shadow,
+          },
+        ]}
+      >
+        <Svg width={size * 0.65} height={size * 0.65} viewBox="0 0 32 32">
+          {/* Folded paper arrow in origami faceted triangles */}
+          <G>
+            {/* Arrow Stem: Left & Right fold facets */}
+            <Path d="M 12 14 L 16 12 L 16 28 L 12 28 Z" fill={theme.arrow} />
+            <Path d="M 16 12 L 20 14 L 20 28 L 16 28 Z" fill={theme.arrowCrease} />
+
+            {/* Arrow Head: Left Wing & Right Wing */}
+            <Path d="M 16 4 L 5 15 L 16 12 Z" fill={theme.primary} />
+            <Path
+              d="M 16 4 L 27 15 L 16 12 Z"
+              fill={mode === 'dark' ? '#E59D1A' : '#C23D17'}
+            />
+
+            {/* Center Fold Crease Line */}
+            <Path d="M 16 4 L 16 28" stroke="rgba(255,255,255,0.4)" strokeWidth={1} />
+          </G>
+        </Svg>
+      </View>
+    );
+  };
 
   if (horizontal) {
     return (
-      <View style={styles.horizontalContainer}>
-        <Animated.View style={[styles.badgeWrapper, animatedStyle]}>
-          <View style={styles.diamondBadge}>
-            <Svg width={20} height={20} viewBox="0 0 24 24" style={styles.badgeSvg}>
-              <Path
-                d="M 5 6 L 19 6 L 19 20"
-                stroke="#FFFFFF"
-                strokeWidth={4.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </Svg>
-          </View>
+      <View style={styles.horizontalRow}>
+        <Animated.View style={[animatedStyle, { marginRight: 10 }]}>
+          {renderOrigamiArrowBadge(42)}
         </Animated.View>
-        <Text style={styles.horizontalText}>
-          ARROW<Text style={styles.mazeText}>MAZE</Text>
-        </Text>
+        <View>
+          {/* Layered cut-out shadow text */}
+          <View style={styles.cutoutTextLayer}>
+            <Text style={[styles.cutoutBase, { color: theme.shadow }]}>
+              ARROW <Text style={{ color: theme.shadow }}>AMAZE</Text>
+            </Text>
+            <Text style={[styles.cutoutFront, { color: theme.primaryText }]}>
+              ARROW <Text style={{ color: theme.primary }}>AMAZE</Text>
+            </Text>
+          </View>
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.badgeWrapper, animatedStyle, { marginBottom: 16 }]}>
-        <View style={[styles.diamondBadge, { width: 64, height: 64, borderRadius: 18, borderWidth: 3 }]}>
-          <Svg width={32} height={32} viewBox="0 0 24 24" style={styles.badgeSvg}>
-            <Path
-              d="M 5 6 L 19 6 L 19 20"
-              stroke="#FFFFFF"
-              strokeWidth={4.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-          </Svg>
-        </View>
+    <View style={styles.verticalContainer}>
+      <Animated.View style={[animatedStyle, { marginBottom: 16 }]}>
+        {renderOrigamiArrowBadge(74)}
       </Animated.View>
-      <Text style={{ fontSize: 32, fontWeight: '900', letterSpacing: -0.5, color: theme.primaryText }}>
-        ARROW<Text style={{ color: '#FACC15' }}>MAZE</Text>
-      </Text>
+
+      <View style={styles.cutoutTextLayer}>
+        {/* Layered cut-out paper typography with offset shadow */}
+        <Text style={[styles.cutoutBase, styles.largeTitle, { color: theme.shadow }]}>
+          ARROW <Text style={{ color: theme.shadow }}>AMAZE</Text>
+        </Text>
+        <Text style={[styles.cutoutFront, styles.largeTitle, { color: theme.primaryText }]}>
+          ARROW <Text style={{ color: theme.primary }}>AMAZE</Text>
+        </Text>
+      </View>
+
+      {/* Small paper sub-stamp: "GO" */}
+      <View
+        style={[
+          styles.goStampPill,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.primary,
+          },
+        ]}
+      >
+        <Text style={[styles.goStampText, { color: theme.primary }]}>ORIGAMI EDITION</Text>
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  container: {
+  verticalContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 32,
+    marginVertical: 24,
   },
-  horizontalContainer: {
+  horizontalRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  badgeWrapper: {
+  badgeCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  diamondBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  cutoutTextLayer: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#F59E0B',
-    backgroundColor: '#0F172A',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 5,
-    transform: [{ rotate: '45deg' }],
   },
-  badgeSvg: {
-    transform: [{ rotate: '-45deg' }],
-  },
-  horizontalText: {
-    fontSize: 28,
+  cutoutBase: {
+    position: 'absolute',
+    top: 2,
+    left: 1.5,
+    fontSize: 24,
     fontWeight: '900',
-    letterSpacing: 0.5,
-    color: '#FFFFFF',
-    textShadowColor: '#1E3A8A',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 2,
-    includeFontPadding: false,
+    letterSpacing: 1.5,
   },
-  mazeText: {
-    color: '#FFD000',
+  cutoutFront: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  largeTitle: {
+    fontSize: 34,
+    letterSpacing: 2,
+  },
+  goStampPill: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+  },
+  goStampText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
 });
-

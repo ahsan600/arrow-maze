@@ -2,12 +2,14 @@ export type ThemeMode = 'dark' | 'white';
 
 export interface ThemeTokens {
   appBackground: string;
+  surface: string;
   boardBackground: string;
   cardBackground: string;
   modalBackground: string;
   primaryText: string;
   secondaryText: string;
   mutedText: string;
+  primary: string;
   border: string;
   divider: string;
   primaryButton: string;
@@ -18,10 +20,23 @@ export interface ThemeTokens {
   selectedState: string;
   arrow: string;
   arrowOutline: string;
+  arrowHighlight: string;
+  arrowCrease: string;
   success: string;
   error: string;
+  warning: string;
   overlay: string;
   shadow: string;
   handle: string;
   disabledState: string;
+  crease: string;
+  creaseHighlight: string;
+  paperTable: string;
+  hanko: string;
+  hankoFaded: string;
+  goldStar: string;
+  hill1: string;
+  hill2: string;
+  hill3: string;
+  paperSun: string;
 }

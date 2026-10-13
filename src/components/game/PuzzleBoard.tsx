@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, memo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   useSharedValue,
@@ -20,7 +20,7 @@ import {
 } from '../../game/engine/PuzzleEngine';
 import { ArrowPiece } from './ArrowPiece';
 import { useTheme } from '../../theme/ThemeContext';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
 
 const TICK_MS = 25;
 
@@ -36,47 +36,73 @@ export interface PuzzleBoardProps {
   hintArrowId?: string | null;
 }
 
-/* Grid is memoized: it only re-renders when visited cells / size change */
+/**
+ * Grid of Faint Paper Fold Lines
+ * Renders dashed crease lines across grid rows and columns like folded origami paper.
+ */
 const GridBackground = memo(function GridBackground({
   rows,
   cols,
   cellSize,
-  visited,
-  visitedColor,
-  idleColor,
+  creaseColor,
+  dotColor,
 }: {
   rows: number;
   cols: number;
   cellSize: number;
-  visited: Set<string>;
-  visitedColor: string;
-  idleColor: string;
+  creaseColor: string;
+  dotColor: string;
 }) {
+  const width = cols * cellSize;
+  const height = rows * cellSize;
+
   return (
     <View style={styles.gridBackground}>
-      {Array.from({ length: rows }).map((_, r) => (
-        <View key={r} style={{ flexDirection: 'row', height: cellSize, width: cols * cellSize }}>
-          {Array.from({ length: cols }).map((_, c) => {
-            const isVisited = visited.has(`${r},${c}`);
-            return (
-              <View
-                key={c}
-                style={[styles.gridCell, { width: cellSize, height: cellSize }]}
-              >
-                <View
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: isVisited ? visitedColor : idleColor,
-                    opacity: isVisited ? 0.35 : 1,
-                  }}
-                />
-              </View>
-            );
-          })}
-        </View>
-      ))}
+      <Svg width={width} height={height}>
+        {/* Horizontal fold crease lines */}
+        {Array.from({ length: rows + 1 }).map((_, r) => (
+          <Line
+            key={`h-${r}`}
+            x1="0"
+            y1={r * cellSize}
+            x2={width}
+            y2={r * cellSize}
+            stroke={creaseColor}
+            strokeWidth="1"
+            strokeDasharray="4 4"
+            opacity={0.65}
+          />
+        ))}
+
+        {/* Vertical fold crease lines */}
+        {Array.from({ length: cols + 1 }).map((_, c) => (
+          <Line
+            key={`v-${c}`}
+            x1={c * cellSize}
+            y1="0"
+            x2={c * cellSize}
+            y2={height}
+            stroke={creaseColor}
+            strokeWidth="1"
+            strokeDasharray="4 4"
+            opacity={0.65}
+          />
+        ))}
+
+        {/* Intersection fold pinprick dots */}
+        {Array.from({ length: rows }).map((_, r) =>
+          Array.from({ length: cols }).map((_, c) => (
+            <Circle
+              key={`dot-${r}-${c}`}
+              cx={c * cellSize + cellSize / 2}
+              cy={r * cellSize + cellSize / 2}
+              r={2.5}
+              fill={dotColor}
+              opacity={0.3}
+            />
+          ))
+        )}
+      </Svg>
     </View>
   );
 });
@@ -92,7 +118,6 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 }) => {
   const { theme, mode } = useTheme();
 
-  // Stable callbacks: keep latest props in refs so handlers never change identity
   const onStateChangeRef = useRef(onStateChange);
   const onArrowBlockedRef = useRef(onArrowBlocked);
   const onArrowFailedRef = useRef(onArrowFailed);
@@ -101,12 +126,12 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
   onArrowFailedRef.current = onArrowFailed;
 
   const [movingArrows, setMovingArrows] = useState<Set<string>>(new Set());
-  const [shakeTriggers, setShakeTriggers] = useState<Record<string, number>>(
-    {},
-  );
-  const [failedIds, setFailedIds] = useState<Record<string, boolean>>({}); // local only, never goes into engine state
+  const [shakeTriggers, setShakeTriggers] = useState<Record<string, number>>({});
+  const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const [activePaths, setActivePaths] = useState<Record<string, Cell[]>>({});
-  const [trajectories, setTrajectories] = useState<Record<string, { path: Cell[], blocked: boolean, isHint: boolean }>>({});
+  const [trajectories, setTrajectories] = useState<
+    Record<string, { path: Cell[]; blocked: boolean; isHint: boolean }>
+  >({});
 
   const movingRef = useRef<Set<string>>(new Set());
   const stateRef = useRef(state);
@@ -115,35 +140,9 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     Record<string, ReturnType<typeof makeMutable<number>>>
   >({});
 
-  // ── visited dots: only set state when a NEW cell appears ──────────────────
   const visitedRef = useRef<Set<string>>(new Set());
-  const [visitedCells, setVisitedCells] = useState<Set<string>>(new Set());
 
-  const markVisited = useCallback(
-    (cells: Cell[], rows: number, cols: number) => {
-      let added = false;
-      for (const c of cells) {
-        if (c.r >= 0 && c.r < rows && c.c >= 0 && c.c < cols) {
-          const k = `${c.r},${c.c}`;
-          if (!visitedRef.current.has(k)) {
-            visitedRef.current.add(k);
-            added = true;
-          }
-        }
-      }
-      if (added) setVisitedCells(new Set(visitedRef.current));
-    },
-    [],
-  );
-
-  useEffect(() => {
-    for (const a of state.arrows)
-      markVisited(a.cells, state.gridSize.rows, state.gridSize.cols);
-  }, [state, markVisited]);
-
-  // ── sync ref from props ───────────────────────────────────────────────────
-  // A fresh state from props is a "Restart" or "Next Level" if it is a new reference.
-  // We only ignore the prop if state === stateRef.current (which happens when we emit a change).
+  // ── Sync fresh state ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (state !== stateRef.current) {
       movingRef.current.forEach(arrowId => {
@@ -158,12 +157,11 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       setShakeTriggers({});
       setTrajectories({});
       visitedRef.current.clear();
-      setVisitedCells(new Set());
       stateRef.current = state;
     }
   }, [state]);
 
-  // ── hint trajectory ───────────────────────────────────────────────────────
+  // ── Hint trajectory ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (hintArrowId && stateRef.current) {
       const cur = stateRef.current;
@@ -173,7 +171,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
         const { rows, cols } = cur.gridSize;
         const n = arrow.cells.length;
         const isCleared = fullPath.slice(-n).every(c => c.r < 0 || c.r >= rows || c.c < 0 || c.c >= cols);
-        
+
         let trajPath = fullPath.slice(n);
         if (!isCleared) {
           const lastCell = fullPath[fullPath.length - 1];
@@ -187,7 +185,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
         setTrajectories(prev => ({
           ...prev,
-          [hintArrowId]: { path: trajPath, blocked: !isCleared, isHint: true }
+          [hintArrowId]: { path: trajPath, blocked: !isCleared, isHint: true },
         }));
       }
     }
@@ -195,25 +193,28 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
   const staticProgress = useSharedValue(1);
 
-  // Tutorial animation
-  const handScale = useSharedValue(1);
+  // ── Hint highlighter pulse ──────────────────────────────────────────────────
+  const hintPulse = useSharedValue(1);
   useEffect(() => {
-    if (showInGameTutorial) {
-      handScale.value = withRepeat(
+    if (hintArrowId) {
+      hintPulse.value = withRepeat(
         withSequence(
-          withTiming(1.2, { duration: 500 }),
-          withTiming(1, { duration: 500 }),
+          withTiming(1.1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.0, { duration: 600, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
         true,
       );
+    } else {
+      hintPulse.value = 1;
     }
-  }, [showInGameTutorial, handScale]);
-  const handStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: handScale.value }],
+  }, [hintArrowId, hintPulse]);
+
+  const hintStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: hintPulse.value }],
   }));
 
-  // ── cell size ─────────────────────────────────────────────────────────────
+  // ── Dimensions ───────────────────────────────────────────────────────────────
   const screenWidth = Dimensions.get('window').width;
   const screenHeight = Dimensions.get('window').height;
   const boardPadding = 48;
@@ -229,7 +230,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
   const boardWidth = maxCols * cellSize;
   const boardHeight = maxRows * cellSize;
 
-  // ── stop a single arrow (batched with the state commit by React 18) ───────
+  // ── Flight handlers ──────────────────────────────────────────────────────────
   const stopArrow = useCallback((arrowId: string) => {
     movingRef.current.delete(arrowId);
     delete activePathsRef.current[arrowId];
@@ -242,13 +243,10 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     });
   }, []);
 
-  // ── Called from the UI thread at each cell boundary ───────────────────────
-  // Per step: update ONLY the ref (cheap). Commit to the parent ONCE when the flight ends.
-  // No collision check and no rollback here: canStartArrow already reserved the lane.
   const handleStepReached = useCallback(
     (arrowId: string, stepIndex: number) => {
       const fullPath = activePathsRef.current[arrowId];
-      if (!fullPath) return; // flight already finished
+      if (!fullPath) return;
 
       const cur = stateRef.current;
       const arrow = cur.arrows.find(a => a.id === arrowId);
@@ -276,14 +274,13 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       stateRef.current = next;
 
       if (finished) {
-        onStateChangeRef.current(next); // the only parent update per flight
+        onStateChangeRef.current(next);
         stopArrow(arrowId);
       }
     },
     [stopArrow],
   );
 
-  // ── Start flying ──────────────────────────────────────────────────────────
   const startArrow = useCallback((arrowId: string, totalSteps: number) => {
     if (!animProgressMap.current[arrowId]) {
       animProgressMap.current[arrowId] = makeMutable(0);
@@ -299,7 +296,6 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     });
   }, []);
 
-  // A rejected tap touches ONLY the tapped arrow's local UI state
   const rejectTap = useCallback((arrowId: string) => {
     setFailedIds(prev => (prev[arrowId] ? prev : { ...prev, [arrowId]: true }));
     setShakeTriggers(prev => ({
@@ -310,7 +306,6 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     onArrowFailedRef.current?.(arrowId);
   }, []);
 
-  // ── User input ────────────────────────────────────────────────────────────
   const handleArrowLongPress = useCallback((arrowId: string) => {
     if (disabled || movingRef.current.has(arrowId)) return;
     const cur = stateRef.current;
@@ -335,21 +330,20 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
     setTrajectories(prev => ({
       ...prev,
-      [arrowId]: { path: trajPath, blocked: !isCleared, isHint: false }
+      [arrowId]: { path: trajPath, blocked: !isCleared, isHint: false },
     }));
   }, [disabled]);
 
   const handleArrowPress = useCallback(
     (arrowId: string) => {
-      if (disabled || movingRef.current.has(arrowId)) return; // already flying: ignore
+      if (disabled || movingRef.current.has(arrowId)) return;
 
       const cur = stateRef.current;
       const arrow = cur.arrows.find(a => a.id === arrowId);
       if (!arrow || !arrow.active || arrow.cleared) return;
 
-      // Whole-lane check, including lanes of arrows that are already flying
       if (!canStartArrow(cur, arrowId, movingRef.current)) {
-        rejectTap(arrowId); // no state writes, no touching other arrows
+        rejectTap(arrowId);
         return;
       }
 
@@ -374,15 +368,14 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
         return next;
       });
 
-      markVisited(fullPath, cur.gridSize.rows, cur.gridSize.cols);
       activePathsRef.current[arrowId] = fullPath;
       setActivePaths(prev => ({ ...prev, [arrowId]: fullPath }));
-      startArrow(arrowId, totalSteps); // committed: never cancelled afterwards
+      startArrow(arrowId, totalSteps);
     },
-    [disabled, startArrow, rejectTap, markVisited],
+    [disabled, startArrow, rejectTap],
   );
 
-  // ── Gestures for zoom & pan ───────────────────────────────────────────────
+  // ── Zoom and Pan gestures ───────────────────────────────────────────────────
   const boardScale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -399,7 +392,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     });
 
   const panGesture = Gesture.Pan()
-    .minDistance(10) // so quick taps on arrows are not delayed by the pan
+    .minDistance(10)
     .onUpdate(e => {
       translateX.value = savedTranslateX.value + e.translationX;
       translateY.value = savedTranslateY.value + e.translationY;
@@ -419,20 +412,9 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     ],
   }));
 
-  const solutionOrder = showInGameTutorial ? getSolutionOrder(state) : null;
-  const bestTutorialArrowId =
-    solutionOrder && solutionOrder.length > 0 ? solutionOrder[0] : null;
-  const tutorialArrow = bestTutorialArrowId
-    ? state.arrows.find(a => a.id === bestTutorialArrowId && a.active && !a.cleared)
-    : (showInGameTutorial
-        ? state.arrows.find(a => a.active && !a.cleared && canStartArrow(state, a.id))
-        : null);
+  // Find hinted arrow
+  const hintedArrow = hintArrowId ? state.arrows.find(a => a.id === hintArrowId) : null;
 
-  const targetCell = tutorialArrow
-    ? (tutorialArrow.cells[Math.floor(tutorialArrow.cells.length / 2)] || tutorialArrow.cells[0])
-    : null;
-
-  // ── render ────────────────────────────────────────────────────────────────
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View
@@ -444,21 +426,52 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
             {
               width: boardWidth,
               height: boardHeight,
-              backgroundColor: mode === 'dark' ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.94)',
-              borderColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.18)' : '#FFFFFF',
-              shadowOpacity: mode === 'dark' ? 0.35 : 0.16,
+              backgroundColor: theme.boardBackground,
+              borderColor: theme.border,
+              borderTopColor: theme.creaseHighlight,
+              shadowColor: theme.shadow,
             },
           ]}
         >
+          {/* Faint fold lines grid */}
           <GridBackground
             rows={maxRows}
             cols={maxCols}
             cellSize={cellSize}
-            visited={visitedCells}
-            visitedColor={mode === 'dark' ? '#64748B' : '#94A3B8'}
-            idleColor={mode === 'dark' ? '#334155' : '#CBD5E1'}
+            creaseColor={theme.crease}
+            dotColor={theme.mutedText}
           />
 
+          {/* Yellow highlighter-style glow for hinted arrow */}
+          {hintedArrow && hintedArrow.active && !hintedArrow.cleared && (
+            <Animated.View
+              style={[
+                styles.highlighterGlow,
+                hintStyle,
+                {
+                  left: Math.min(...hintedArrow.cells.map(c => c.c)) * cellSize - 4,
+                  top: Math.min(...hintedArrow.cells.map(c => c.r)) * cellSize - 4,
+                  width:
+                    (Math.max(...hintedArrow.cells.map(c => c.c)) -
+                      Math.min(...hintedArrow.cells.map(c => c.c)) +
+                      1) *
+                      cellSize +
+                    8,
+                  height:
+                    (Math.max(...hintedArrow.cells.map(c => c.r)) -
+                      Math.min(...hintedArrow.cells.map(c => c.r)) +
+                      1) *
+                      cellSize +
+                    8,
+                  backgroundColor: mode === 'dark' ? 'rgba(242, 177, 52, 0.28)' : 'rgba(242, 177, 52, 0.35)',
+                  borderColor: theme.warning,
+                },
+              ]}
+              pointerEvents="none"
+            />
+          )}
+
+          {/* Origami Paper Arrows */}
           {state.arrows
             .filter(a => a.active && !a.cleared)
             .map(arrow => (
@@ -470,25 +483,23 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
                 onPress={handleArrowPress}
                 onLongPress={handleArrowLongPress}
                 disabled={disabled}
-                animProgress={
-                  animProgressMap.current[arrow.id] ?? staticProgress
-                }
+                animProgress={animProgressMap.current[arrow.id] ?? staticProgress}
                 shakeTrigger={shakeTriggers[arrow.id] || 0}
                 failed={!!failedIds[arrow.id]}
                 onStepReached={handleStepReached}
               />
             ))}
 
+          {/* Trajectory stitch-like line (running sewing thread) */}
           <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
             {Object.entries(trajectories).map(([id, traj]) => {
               const arrow = state.arrows.find(a => a.id === id);
               if (!arrow || traj.path.length === 0) return null;
-              
+
               const isFailed = failedIds[id];
-              const color = isFailed || traj.blocked
-                ? theme.error
-                : (traj.isHint ? theme.success : (mode === 'dark' ? '#38BDF8' : theme.primaryText));
-              
+              // Open path = matcha/teal, Blocked = vermilion/coral
+              const color = isFailed || traj.blocked ? theme.error : theme.success;
+
               const head = arrow.cells[arrow.cells.length - 1];
               const startX = head.c * cellSize + cellSize / 2;
               const startY = head.r * cellSize + cellSize / 2;
@@ -506,91 +517,29 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
               return (
                 <React.Fragment key={`traj-${id}`}>
+                  {/* Sewing thread running stitch */}
                   <Path
                     d={`M ${startX} ${startY} L ${endX} ${endY}`}
                     stroke={color}
-                    strokeWidth={4}
-                    strokeDasharray="8 8"
-                    opacity={0.5}
+                    strokeWidth={3}
+                    strokeDasharray="6 4"
+                    strokeLinecap="round"
+                    opacity={0.85}
                   />
                   {traj.path.map((cell, idx) => (
                     <Circle
                       key={`dot-${idx}`}
                       cx={cell.c * cellSize + cellSize / 2}
                       cy={cell.r * cellSize + cellSize / 2}
-                      r={4}
+                      r={3}
                       fill={color}
-                      opacity={0.8}
+                      opacity={0.9}
                     />
                   ))}
                 </React.Fragment>
               );
             })}
           </Svg>
-
-          {tutorialArrow && targetCell && movingArrows.size === 0 && (
-            <Animated.View
-              style={[
-                {
-                  position: 'absolute',
-                  left: targetCell.c * cellSize + cellSize / 2 - 24,
-                  top: targetCell.r * cellSize + cellSize / 2 - 24,
-                  width: 48,
-                  height: 48,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: 100,
-                  pointerEvents: 'none',
-                },
-                handStyle,
-              ]}
-            >
-              <View
-                style={{
-                  position: 'absolute',
-                  top: -56,
-                  backgroundColor: theme.success,
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 12,
-                  shadowColor: '#000',
-                  shadowOpacity: 0.1,
-                  shadowRadius: 2,
-                  elevation: 2,
-                  width: 144,
-                  alignItems: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    color: '#fff',
-                    fontWeight: 'bold',
-                    fontSize: 18,
-                    textAlign: 'center',
-                  }}
-                >
-                  Tap an arrow
-                </Text>
-                <View
-                  style={{
-                    position: 'absolute',
-                    bottom: -8,
-                    width: 0,
-                    height: 0,
-                    borderLeftWidth: 8,
-                    borderRightWidth: 8,
-                    borderTopWidth: 8,
-                    borderLeftColor: 'transparent',
-                    borderRightColor: 'transparent',
-                    borderTopColor: theme.success,
-                  }}
-                />
-              </View>
-              <Text style={{ fontSize: 50, marginTop: 40, marginLeft: 20 }}>
-                👆
-              </Text>
-            </Animated.View>
-          )}
         </View>
       </Animated.View>
     </GestureDetector>
@@ -601,15 +550,13 @@ const styles = StyleSheet.create({
   board: {
     position: 'relative',
     overflow: 'visible',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    elevation: 8,
+    borderWidth: 1.5,
+    borderTopWidth: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
   },
   gridBackground: {
     position: 'absolute',
@@ -620,5 +567,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
   },
-  gridCell: { justifyContent: 'center', alignItems: 'center' },
+  highlighterGlow: {
+    position: 'absolute',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    zIndex: 5,
+  },
 });
