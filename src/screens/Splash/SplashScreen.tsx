@@ -69,9 +69,10 @@ export const SplashScreen: React.FC = () => {
         getProgress(),
       ]);
 
-      screenOpacity.value = withTiming(0, { duration: 300 }, () => {
+      screenOpacity.value = withTiming(0, { duration: 300 });
+      setTimeout(() => {
         navigation.replace('Home');
-      });
+      }, 300);
     };
 
     init();
