@@ -1,0 +1,27 @@
+import { ThemeTokens } from './types';
+
+export const whiteTheme: ThemeTokens = {
+  appBackground: '#ffffff',
+  boardBackground: '#f5f5f5',
+  cardBackground: '#ffffff',
+  modalBackground: '#ffffff',
+  primaryText: '#000000',
+  secondaryText: '#525252',
+  mutedText: '#a3a3a3',
+  border: '#e5e5e5',
+  divider: '#f5f5f5',
+  primaryButton: '#000000',
+  primaryButtonText: '#ffffff',
+  secondaryButton: 'transparent',
+  secondaryButtonText: '#000000',
+  icon: '#000000',
+  selectedState: '#f0f0f0',
+  arrow: '#0F172A',
+  arrowOutline: '#ffffff',
+  success: '#22c55e',
+  error: '#ef4444',
+  overlay: 'rgba(0, 0, 0, 0.5)',
+  shadow: 'rgba(0, 0, 0, 0.1)',
+  handle: '#d4d4d4',
+  disabledState: '#d4d4d4',
+};
