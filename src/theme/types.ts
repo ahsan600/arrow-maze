@@ -42,4 +42,6 @@ export interface ThemeTokens {
   hill2: string;
   hill3: string;
   paperSun: string;
+  gridDotIdle: string;
+  gridDotVisited: string;
 }

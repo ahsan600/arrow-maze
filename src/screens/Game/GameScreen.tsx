@@ -1,23 +1,38 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, LayoutAnimation } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Switch,
+  TouchableOpacity,
+  LayoutAnimation,
+} from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Svg, { Path, Rect, G } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { IconButton } from '../../components/ui/IconButton';
+import { colors } from '../../theme/colors';
 import { getProgress, setProgress } from '../../storage/gameStorage';
 import { PuzzleBoard } from '../../components/game/PuzzleBoard';
 import { allLevels } from '../../game/levels';
-import { generateLevelData, getAnimalNameForLevel } from '../../game/levels/LevelGenerator';
-import { PuzzleState, isLevelComplete, getSolutionOrder } from '../../game/engine/PuzzleEngine';
+import {
+  generateLevelData,
+  getAnimalNameForLevel,
+} from '../../game/levels/LevelGenerator';
+import {
+  PuzzleState,
+  isLevelComplete,
+  getSolutionOrder,
+} from '../../game/engine/PuzzleEngine';
 import { GameProgress } from '../../types/game.types';
 import { useTheme } from '../../theme/ThemeContext';
 import { ThemeMode } from '../../theme/types';
 import { WaterDrop } from '../../components/icons/WaterDrop';
 import { Modal } from '../../components/ui/Modal';
 import { StarsDisplay } from '../../components/ui/StarsDisplay';
-import { PaperButton } from '../../components/buttons/PaperButton';
-import { PaperCard } from '../../components/cards/PaperCard';
+import { Button } from '../../components/ui/Button';
+import { SettingsButton } from '../../components/buttons/SettingsButton';
 
 type RootStackParamList = {
   Home: undefined;
@@ -26,24 +41,10 @@ type RootStackParamList = {
 };
 
 type GameScreenRouteProp = RouteProp<RootStackParamList, 'Game'>;
-type GameScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Game'>;
-
-/** Scattered Paper Confetti Bits for Win Certificate Modal */
-const PaperConfetti = ({ theme }: { theme: any }) => (
-  <View style={StyleSheet.absoluteFill} pointerEvents="none">
-    <Svg width="100%" height="100%">
-      <G opacity={0.85}>
-        <Rect x="20" y="40" width="8" height="8" fill={theme.primary} transform="rotate(25 24 44)" />
-        <Rect x="85" y="15" width="10" height="6" fill={theme.warning} transform="rotate(-35 90 18)" />
-        <Rect x="160" y="30" width="7" height="9" fill={theme.success} transform="rotate(45 163 34)" />
-        <Rect x="240" y="18" width="9" height="7" fill={theme.arrow} transform="rotate(15 244 21)" />
-        <Rect x="290" y="45" width="8" height="8" fill={theme.primary} transform="rotate(-20 294 49)" />
-        <Rect x="40" y="110" width="7" height="7" fill={theme.success} transform="rotate(60 43 113)" />
-        <Rect x="270" y="105" width="8" height="6" fill={theme.warning} transform="rotate(-40 274 108)" />
-      </G>
-    </Svg>
-  </View>
-);
+type GameScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  'Game'
+>;
 
 export const GameScreen: React.FC = () => {
   const route = useRoute<GameScreenRouteProp>();
@@ -67,12 +68,18 @@ export const GameScreen: React.FC = () => {
   const [hintArrowId, setHintArrowId] = useState<string | null>(null);
 
   const loadLevel = useCallback(async () => {
+    // Find the requested level, or default to level 1 if not found
     const targetLevelId = levelId > 0 ? levelId : 1;
     let levelDef = allLevels.find(l => l.id === targetLevelId);
     if (!levelDef) {
-      levelDef = generateLevelData(targetLevelId, getAnimalNameForLevel(targetLevelId));
+      levelDef = generateLevelData(
+        targetLevelId,
+        getAnimalNameForLevel(targetLevelId),
+      );
     }
 
+    // We clone the arrows to prevent mutating the original level definition
+    // and automatically extend 1-cell arrows to have a tail
     const arrows = levelDef.arrows.map(a => {
       let newCells = [...a.cells.map(c => ({ ...c }))];
       if (newCells.length === 1) {
@@ -82,6 +89,8 @@ export const GameScreen: React.FC = () => {
         else if (a.direction === 'DOWN') tail.r -= 1;
         else if (a.direction === 'LEFT') tail.c += 1;
         else if (a.direction === 'RIGHT') tail.c -= 1;
+
+        // Arrow piece expects cells to be ordered from tail to head
         newCells = [tail, head];
       }
       return {
@@ -90,8 +99,11 @@ export const GameScreen: React.FC = () => {
       };
     });
 
-    let minR = Infinity, maxR = -Infinity;
-    let minC = Infinity, maxC = -Infinity;
+    // Calculate bounding box for dynamic grid
+    let minR = Infinity,
+      maxR = -Infinity;
+    let minC = Infinity,
+      maxC = -Infinity;
 
     arrows.forEach(a => {
       a.cells.forEach(c => {
@@ -103,7 +115,10 @@ export const GameScreen: React.FC = () => {
     });
 
     if (minR === Infinity) {
-      minR = 0; maxR = 3; minC = 0; maxC = 3;
+      minR = 0;
+      maxR = 3;
+      minC = 0;
+      maxC = 3; // Fallback
     }
 
     const normalizedArrows = arrows.map(a => ({
@@ -133,22 +148,28 @@ export const GameScreen: React.FC = () => {
     setShowInGameTutorial(!p.tutorialCompleted && levelId <= 3);
   }, [levelId]);
 
-  const toggleSetting = useCallback(async (key: 'soundEnabled' | 'hapticsEnabled', value: boolean) => {
-    if (progress) {
-      const newProgress = { ...progress, [key]: value };
-      setProgressState(newProgress);
-      await setProgress(newProgress);
-    }
-  }, [progress]);
+  const toggleSetting = useCallback(
+    async (key: 'soundEnabled' | 'hapticsEnabled', value: boolean) => {
+      if (progress) {
+        const newProgress = { ...progress, [key]: value };
+        setProgressState(newProgress);
+        await setProgress(newProgress);
+      }
+    },
+    [progress],
+  );
 
-  const toggleTheme = useCallback(async (newMode: ThemeMode) => {
-    if (progress) {
-      const newProgress = { ...progress, theme: newMode };
-      setProgressState(newProgress);
-      setMode(newMode);
-      await setProgress(newProgress);
-    }
-  }, [progress, setMode]);
+  const toggleTheme = useCallback(
+    async (newMode: ThemeMode) => {
+      if (progress) {
+        const newProgress = { ...progress, theme: newMode };
+        setProgressState(newProgress);
+        setMode(newMode);
+        await setProgress(newProgress);
+      }
+    },
+    [progress, setMode],
+  );
 
   const handleTogglePalette = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -163,7 +184,7 @@ export const GameScreen: React.FC = () => {
     if (drops === 0 && puzzleState && !isLevelComplete(puzzleState)) {
       const timer = setTimeout(() => {
         setShowFailModal(true);
-      }, 500);
+      }, 600);
       return () => clearTimeout(timer);
     }
   }, [drops, puzzleState]);
@@ -173,165 +194,126 @@ export const GameScreen: React.FC = () => {
     loadLevel();
   }, [loadLevel]);
 
-  const handleStateChange = useCallback(async (newState: PuzzleState) => {
-    setPuzzleState(newState);
+  const handleStateChange = useCallback(
+    async (newState: PuzzleState) => {
+      setPuzzleState(newState);
 
-    if (isLevelComplete(newState)) {
-      try {
-        const p = await getProgress();
-        if (!p.completedLevels.includes(levelId)) {
-          p.completedLevels.push(levelId);
+      if (isLevelComplete(newState)) {
+        try {
+          const progress = await getProgress();
+          if (!progress.completedLevels.includes(levelId)) {
+            progress.completedLevels.push(levelId);
+          }
+
+          const nextLevel = levelId + 1;
+          if (nextLevel > progress.currentLevel) {
+            progress.currentLevel = nextLevel;
+          }
+
+          if (levelId >= 3 && !progress.tutorialCompleted) {
+            progress.tutorialCompleted = true;
+            setShowInGameTutorial(false);
+          }
+
+          const today = new Date().toISOString().split('T')[0];
+          if (progress.dailyPlayedDate !== today) {
+            progress.dailyPlayedDate = today;
+            progress.dailyPlayedCount = 1;
+          } else {
+            progress.dailyPlayedCount = (progress.dailyPlayedCount || 0) + 1;
+          }
+
+          const targetLevelId = levelId > 0 ? levelId : 1;
+          let levelDef = allLevels.find(l => l.id === targetLevelId);
+          if (!levelDef) {
+            levelDef = generateLevelData(
+              targetLevelId,
+              getAnimalNameForLevel(targetLevelId),
+            );
+          }
+          const maxHearts = levelDef.maxHearts || 3;
+          const lostDrops = maxHearts - drops;
+          let stars = 3;
+          if (lostDrops === 1) stars = 2;
+          if (lostDrops >= 2) stars = 1;
+
+          setEarnedStars(stars);
+
+          if (!progress.bestScores) {
+            progress.bestScores = {};
+          }
+          const currentBest = progress.bestScores[levelId] || 0;
+          if (stars > currentBest) {
+            progress.bestScores[levelId] = stars;
+          }
+
+          await setProgress(progress);
+          setProgressState(progress);
+
+          // Show modal after brief delay to show empty board
+          setTimeout(() => {
+            setShowCompleteModal(true);
+          }, 800);
+        } catch (e) {
+          console.error(e);
         }
-
-        const nextLevel = levelId + 1;
-        if (nextLevel > p.currentLevel) {
-          p.currentLevel = nextLevel;
-        }
-
-        if (levelId >= 3 && !p.tutorialCompleted) {
-          p.tutorialCompleted = true;
-          setShowInGameTutorial(false);
-        }
-
-        const today = new Date().toISOString().split('T')[0];
-        if (p.dailyPlayedDate !== today) {
-          p.dailyPlayedDate = today;
-          p.dailyPlayedCount = 1;
-        } else {
-          p.dailyPlayedCount = (p.dailyPlayedCount || 0) + 1;
-        }
-
-        const targetLevelId = levelId > 0 ? levelId : 1;
-        let levelDef = allLevels.find(l => l.id === targetLevelId);
-        if (!levelDef) {
-          levelDef = generateLevelData(targetLevelId, getAnimalNameForLevel(targetLevelId));
-        }
-        const maxHearts = levelDef.maxHearts || 3;
-        const lostDrops = maxHearts - drops;
-        let stars = 3;
-        if (lostDrops === 1) stars = 2;
-        if (lostDrops >= 2) stars = 1;
-
-        setEarnedStars(stars);
-
-        if (!p.bestScores) {
-          p.bestScores = {};
-        }
-        const currentBest = p.bestScores[levelId] || 0;
-        if (stars > currentBest) {
-          p.bestScores[levelId] = stars;
-        }
-
-        await setProgress(p);
-        setProgressState(p);
-
-        setTimeout(() => {
-          setShowCompleteModal(true);
-        }, 700);
-      } catch (e) {
-        console.error(e);
       }
-    }
-  }, [levelId, drops]);
+    },
+    [levelId, drops],
+  );
 
-  const handleArrowBlocked = useCallback(() => {
+  const handleArrowBlocked = useCallback((arrowId: string) => {
     setDrops(prev => Math.max(0, prev - 1));
   }, []);
 
   if (!puzzleState) return null;
 
-  const remainingArrows = puzzleState.arrows.filter(a => a.active && !a.cleared).length;
-
   return (
-    <ScreenContainer style={styles.container}>
-      {/* Top HUD */}
+    <ScreenContainer
+      useBackgroundImage={true}
+      overlayOpacity={0.15}
+      style={styles.container}
+    >
+      {/* Top Header */}
       <View style={styles.header}>
-        {/* Back Button */}
         <IconButton
           icon="back"
           onPress={() => navigation.goBack()}
-          iconColor={theme.primaryText}
-          style={[styles.headerRoundBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          size={22}
+          iconColor="#0F172A"
+          style={styles.headerCircleBtn}
+          size={24}
         />
 
-        {/* Level Tag Label with stitched border */}
-        <View
-          style={[
-            styles.levelTag,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-              borderTopColor: theme.creaseHighlight,
-              shadowColor: theme.shadow,
-            },
-          ]}
-        >
-          <Text style={[styles.levelTagText, { color: theme.primaryText }]}>
-            LEVEL {levelId}
-          </Text>
+        <View style={styles.levelHeaderCenter}>
+          <Text style={styles.levelTitleText}>Level {levelId}</Text>
+          <View style={styles.levelStatsPill}>
+            <Text style={styles.levelStatsText}>
+              Failed: {failedAttempts} • Hints: {hintsUsed}
+            </Text>
+          </View>
         </View>
 
-        {/* Pause/Settings Round Paper Button */}
-        <TouchableOpacity
-          onPress={() => setShowSettingsModal(true)}
-          style={[
-            styles.headerRoundBtn,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-              shadowColor: theme.shadow,
-            },
-          ]}
-          activeOpacity={0.8}
-        >
-          <Svg width={20} height={20} viewBox="0 0 24 24">
-            <Path
-              d="M 6 5 L 10 5 L 10 19 L 6 19 Z M 14 5 L 18 5 L 18 19 L 14 19 Z"
-              fill={theme.primaryText}
-            />
-          </Svg>
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <SettingsButton
+            onPress={() => setShowSettingsModal(true)}
+            size={44}
+          />
+        </View>
       </View>
 
-      {/* Hanko Ink Stamps Life Indicator & Remaining Arrows Strip */}
+      {/* Life/Drops HUD Indicator */}
       <View style={styles.hudRow}>
-        {/* 3 Hanko ink stamps */}
-        <View
-          style={[
-            styles.hankoRow,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-              borderTopColor: theme.creaseHighlight,
-              shadowColor: theme.shadow,
-            },
-          ]}
-        >
-          {Array.from({ length: 3 }).map((_, i) => (
-            <WaterDrop key={i} size={24} empty={i >= drops} />
-          ))}
-        </View>
-
-        {/* Remaining arrows paper strip indicator */}
-        <View
-          style={[
-            styles.progressStrip,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-              borderTopColor: theme.creaseHighlight,
-              shadowColor: theme.shadow,
-            },
-          ]}
-        >
-          <Text style={[styles.progressStripText, { color: theme.secondaryText }]}>
-            REMAINING: <Text style={{ color: theme.primary, fontWeight: '900' }}>{remainingArrows}</Text>
-          </Text>
+        <View style={styles.dropsPill}>
+          <View style={styles.dropsList}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <WaterDrop key={i} size={22} empty={i >= drops} />
+            ))}
+          </View>
+          <Text style={styles.dropsText}>{drops}/3</Text>
         </View>
       </View>
 
-      {/* Main Origami Board */}
+      {/* Game Board */}
       <View style={styles.boardContainer}>
         <PuzzleBoard
           state={puzzleState}
@@ -344,20 +326,11 @@ export const GameScreen: React.FC = () => {
         />
       </View>
 
-      {/* Floating Action Controls: Hint & Restart (Paper Buttons) */}
+      {/* Floating Action Controls: Hint & Restart */}
       <View style={styles.floatingActions}>
-        <PaperButton
-          title="Hint"
-          variant="secondary"
-          radiusSize="lg"
-          icon={
-            <Svg width={18} height={18} viewBox="0 0 24 24">
-              <Path
-                d="M 12 2 C 8.1 2 5 5.1 5 9 C 5 11.4 6.2 13.5 8 14.7 L 8 18 C 8 18.6 8.4 19 9 19 L 15 19 C 15.6 19 16 18.6 16 18 L 16 14.7 C 17.8 13.5 19 11.4 19 9 C 19 5.1 15.9 2 12 2 Z M 10 21 C 10 21.6 10.4 22 11 22 L 13 22 C 13.6 22 14 21.6 14 21 L 10 21 Z"
-                fill={theme.warning}
-              />
-            </Svg>
-          }
+        <TouchableOpacity
+          style={styles.hintButton}
+          activeOpacity={0.8}
           onPress={() => {
             if (!puzzleState) return;
             const order = getSolutionOrder(puzzleState);
@@ -368,219 +341,538 @@ export const GameScreen: React.FC = () => {
               }
             }
           }}
-          style={styles.actionPaperBtn}
-        />
+        >
+          <Svg width={22} height={22} viewBox="0 0 24 24" fill="#D97706">
+            <Path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 14c-.55 0-1-.45-1-1v-2c0-.55.45-1 1-1s1 .45 1 1v2c0 .55-.45 1-1 1zm1-5h-2v-1.5c0-.83.67-1.5 1.5-1.5h.5c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1H9c0-1.66 1.34-3 3-3s3 1.34 3 3c0 1.1-.9 2-2 2v2z" />
+          </Svg>
+          <Text style={styles.hintButtonText}>Hint</Text>
+        </TouchableOpacity>
 
-        <PaperButton
-          title="Restart"
-          variant="secondary"
-          radiusSize="lg"
-          icon={
-            <Svg width={18} height={18} viewBox="0 0 24 24">
-              <Path
-                d="M 17.65 6.35 C 16.2 4.9 14.21 4 12 4 C 7.58 4 4.01 7.58 4.01 12 C 4.01 16.42 7.58 20 12 20 C 15.73 20 18.84 17.45 19.73 14 L 17.65 14 C 16.83 16.33 14.61 18 12 18 C 8.69 18 6 15.31 6 12 C 6 8.69 8.69 6 12 6 C 13.66 6 15.14 6.69 16.22 7.78 L 13 11 L 20 11 L 20 4 Z"
-                fill={theme.primaryText}
-              />
-            </Svg>
-          }
+        <TouchableOpacity
+          style={styles.retryButton}
+          activeOpacity={0.8}
           onPress={loadLevel}
-          style={styles.actionPaperBtn}
-        />
+        >
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="#334155">
+            <Path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+          </Svg>
+          <Text style={styles.retryButtonText}>Restart</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Win Modal: Unfolding Paper Certificate */}
-      <Modal visible={showCompleteModal} position="center">
-        <View style={styles.modalContent}>
-          {/* Confetti bits */}
-          <PaperConfetti theme={theme} />
+      {/* Bottom Floating Badge resting above wooden dock */}
+      <View style={styles.bottomDockContainer}>
+        <View style={styles.bottomDockPill}>
+          <Text style={styles.bottomDockText}>CHALLENGE ACTIVE</Text>
+        </View>
+      </View>
 
-          {/* Stars flying in */}
-          <View style={styles.starsWrapper}>
-            <StarsDisplay stars={earnedStars} size={48} animate={true} />
+      <Modal visible={showCompleteModal} position="center">
+        <View
+          style={{
+            alignItems: 'center',
+            position: 'relative',
+            marginTop: 24,
+            paddingBottom: 8,
+          }}
+        >
+          <View
+            style={{
+              position: 'absolute',
+              top: -80,
+              zIndex: 10,
+              transform: [{ scale: 1.25 }],
+            }}
+          >
+            <StarsDisplay stars={earnedStars} size={52} animate={true} />
           </View>
 
-          <Text style={[styles.certificateHeading, { color: theme.primaryText }]}>
-            LEVEL SOLVED!
-          </Text>
-          <Text style={[styles.certificateSub, { color: theme.mutedText }]}>
-            ORIGAMI CERTIFICATE OF MASTERY
+          <Text
+            style={{
+              fontSize: 30,
+              fontWeight: '900',
+              color: theme.primaryText,
+              marginTop: 40,
+              marginBottom: 24,
+            }}
+          >
+            Well Done!
           </Text>
 
-          {/* Certificate score paper card */}
-          <PaperCard radiusSize="md" style={styles.scoreDetailsCard}>
-            <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}>Hanko Lives</Text>
-              <Text style={[styles.statValue, { color: theme.primaryText }]}>{drops} / 3</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
-            <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}>Hints Used</Text>
-              <Text style={[styles.statValue, { color: theme.primaryText }]}>{hintsUsed}</Text>
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
-            <View style={styles.statRow}>
-              <Text style={[styles.statLabel, { color: theme.mutedText }]}>Mastery Score</Text>
-              <Text style={[styles.statValue, { color: theme.primary, fontWeight: '900' }]}>
-                {1000 + drops * 150} PTS
+          <View
+            style={{
+              width: '100%',
+              backgroundColor: theme.cardBackground,
+              borderRadius: 24,
+              padding: 20,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginBottom: 12,
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.mutedText,
+                  fontWeight: '500',
+                  fontSize: 16,
+                }}
+              >
+                Difficulty
+              </Text>
+              <Text
+                style={{
+                  color: theme.primaryText,
+                  fontWeight: 'bold',
+                  fontSize: 16,
+                }}
+              >
+                Normal
               </Text>
             </View>
-          </PaperCard>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginBottom: 12,
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.mutedText,
+                  fontWeight: '500',
+                  fontSize: 16,
+                }}
+              >
+                Score
+              </Text>
+              <Text
+                style={{
+                  color: theme.primaryText,
+                  fontWeight: 'bold',
+                  fontSize: 16,
+                }}
+              >
+                {1000 + drops * 100}
+              </Text>
+            </View>
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+            >
+              <Text
+                style={{
+                  color: theme.mutedText,
+                  fontWeight: '500',
+                  fontSize: 16,
+                }}
+              >
+                Today's Levels
+              </Text>
+              <Text
+                style={{
+                  color: theme.primaryText,
+                  fontWeight: 'bold',
+                  fontSize: 16,
+                }}
+              >
+                {progress?.dailyPlayedCount || 1}
+              </Text>
+            </View>
 
-          <PaperButton
+            <View
+              style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-around',
+                alignItems: 'center',
+                backgroundColor: theme.appBackground,
+                borderRadius: 16,
+                paddingVertical: 12,
+                marginTop: 16,
+              }}
+            >
+              <Text style={{ color: theme.secondaryText, fontWeight: 'bold' }}>
+                🎯 {puzzleState.arrows.length}
+              </Text>
+              <View
+                style={{ width: 1, height: 16, backgroundColor: theme.border }}
+              />
+              <Text style={{ color: theme.secondaryText, fontWeight: 'bold' }}>
+                ❌ {failedAttempts}
+              </Text>
+              <View
+                style={{ width: 1, height: 16, backgroundColor: theme.border }}
+              />
+              <Text style={{ color: theme.secondaryText, fontWeight: 'bold' }}>
+                💡 {hintsUsed}
+              </Text>
+            </View>
+          </View>
+
+          <Button
             title="Next Level"
             variant="primary"
-            radiusSize="md"
-            fullWidth
+            style={{ width: '100%', marginTop: 8 }}
             onPress={() => {
               setShowCompleteModal(false);
               setTimeout(() => {
                 navigation.replace('Game', { levelId: (levelId || 1) + 1 });
-              }, 250);
+              }, 300);
             }}
-            style={{ marginTop: 14 }}
           />
 
-          <View style={styles.modalButtonsRow}>
-            <PaperButton
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 16,
+              width: '100%',
+              marginTop: 16,
+            }}
+          >
+            <Button
               title="Replay"
               variant="secondary"
-              radiusSize="md"
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                backgroundColor: theme.cardBackground,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
               onPress={() => {
                 setShowCompleteModal(false);
                 loadLevel();
               }}
             />
-            <PaperButton
+            <Button
               title="Menu"
               variant="secondary"
-              radiusSize="md"
-              style={{ flex: 1 }}
+              style={{
+                flex: 1,
+                backgroundColor: theme.cardBackground,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
               onPress={() => {
                 setShowCompleteModal(false);
-                navigation.goBack();
+                setTimeout(() => navigation.goBack(), 300);
               }}
             />
           </View>
         </View>
       </Modal>
 
-      {/* Fail Modal: Crumpled-Edge Paper Card (No harsh red) */}
-      <Modal visible={showFailModal} position="center">
-        <View style={styles.modalContent}>
-          {/* Broken Hanko Seal */}
-          <View style={styles.failHankoWrapper}>
-            <WaterDrop size={56} empty={true} />
+      <Modal
+        visible={showSettingsModal}
+        position="center"
+        onClose={() => setShowSettingsModal(false)}
+      >
+        <View style={{ paddingVertical: 16 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 24,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 24,
+                fontWeight: 'bold',
+                color: theme.primaryText,
+              }}
+            >
+              Paused
+            </Text>
+            <IconButton
+              icon="close"
+              onPress={() => setShowSettingsModal(false)}
+              iconColor={theme.primaryText}
+              size={28}
+            />
           </View>
 
-          <Text style={[styles.failHeading, { color: theme.primaryText }]}>
-            Out of Hanko Stamps
-          </Text>
-          <Text style={[styles.failSub, { color: theme.mutedText }]}>
-            A fold collision occurred. Unfold and try again!
-          </Text>
-
-          <PaperButton
-            title="Try Again"
-            variant="primary"
-            radiusSize="md"
-            fullWidth
-            onPress={handleRetry}
-            style={{ marginTop: 16 }}
-          />
-
-          <PaperButton
-            title="Return to Menu"
-            variant="secondary"
-            radiusSize="md"
-            fullWidth
-            onPress={() => {
-              setShowFailModal(false);
-              navigation.goBack();
+          <View
+            style={{
+              backgroundColor: theme.cardBackground,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 24,
+              borderWidth: 1,
+              borderColor: theme.border,
             }}
-            style={{ marginTop: 10 }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 20,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, marginRight: 12 }}>🔊</Text>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: '500',
+                    color: theme.primaryText,
+                  }}
+                >
+                  Sound
+                </Text>
+              </View>
+              <Switch
+                value={progress?.soundEnabled ?? true}
+                onValueChange={val => toggleSetting('soundEnabled', val)}
+                trackColor={{
+                  false: theme.disabledState,
+                  true: theme.primaryText,
+                }}
+                thumbColor={theme.appBackground}
+              />
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, marginRight: 12 }}>📳</Text>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: '500',
+                    color: theme.primaryText,
+                  }}
+                >
+                  Vibration
+                </Text>
+              </View>
+              <Switch
+                value={progress?.hapticsEnabled ?? true}
+                onValueChange={val => toggleSetting('hapticsEnabled', val)}
+                trackColor={{
+                  false: theme.disabledState,
+                  true: theme.primaryText,
+                }}
+                thumbColor={theme.appBackground}
+              />
+            </View>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: theme.cardBackground,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 24,
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+              onPress={handleTogglePalette}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, marginRight: 16 }}>🎨</Text>
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: '500',
+                    color: theme.primaryText,
+                  }}
+                >
+                  Color Palette
+                </Text>
+              </View>
+              <Text
+                style={{
+                  color: theme.primaryText,
+                  fontSize: 24,
+                  fontWeight: '300',
+                  transform: [{ rotate: showPalette ? '90deg' : '0deg' }],
+                }}
+              >
+                ›
+              </Text>
+            </TouchableOpacity>
+
+            {showPalette && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  marginTop: 16,
+                  paddingTop: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: theme.divider,
+                  justifyContent: 'space-around',
+                }}
+              >
+                <View style={{ alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => toggleTheme('dark')}
+                    style={{
+                      width: 64,
+                      height: 80,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor:
+                        mode === 'dark' ? theme.primaryText : 'transparent',
+                      backgroundColor: '#000000',
+                      shadowColor: '#000',
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '500',
+                      color: theme.primaryText,
+                      marginTop: 8,
+                    }}
+                  >
+                    Dark Mode
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    width: 1,
+                    height: 40,
+                    backgroundColor: theme.divider,
+                  }}
+                />
+
+                <View style={{ alignItems: 'center', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => toggleTheme('white')}
+                    style={{
+                      width: 64,
+                      height: 80,
+                      borderRadius: 8,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor:
+                        mode === 'white' ? theme.primaryText : 'transparent',
+                      backgroundColor: '#ffffff',
+                      shadowColor: '#000',
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '500',
+                      color: theme.primaryText,
+                      marginTop: 8,
+                    }}
+                  >
+                    White Mode
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <Button
+            title="Restart"
+            variant="primary"
+            onPress={() => {
+              setShowSettingsModal(false);
+              loadLevel();
+            }}
+            fullWidth
           />
         </View>
       </Modal>
 
-      {/* Paused Settings Notebook Modal */}
-      <Modal visible={showSettingsModal} position="center" onClose={() => setShowSettingsModal(false)}>
-        <View style={{ paddingVertical: 12 }}>
-          <View style={styles.pauseHeader}>
-            <Text style={[styles.pauseTitle, { color: theme.primaryText }]}>Game Paused</Text>
-            <IconButton icon="close" onPress={() => setShowSettingsModal(false)} iconColor={theme.primaryText} size={24} />
+      <Modal visible={showFailModal} position="center">
+        <View
+          style={{
+            alignItems: 'center',
+            position: 'relative',
+            marginTop: 24,
+            paddingBottom: 8,
+          }}
+        >
+          <View style={{ position: 'absolute', top: -70, zIndex: 10 }}>
+            <WaterDrop size={64} empty={true} />
           </View>
 
-          <PaperCard radiusSize="md" style={styles.settingsGroupCard}>
-            <View style={styles.switchRow}>
-              <Text style={[styles.switchLabel, { color: theme.primaryText }]}>Sound Effects</Text>
-              <Switch
-                value={progress?.soundEnabled ?? true}
-                onValueChange={val => toggleSetting('soundEnabled', val)}
-                trackColor={{ false: theme.disabledState, true: theme.primary }}
-                thumbColor={theme.surface}
-              />
-            </View>
-            <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
-            <View style={styles.switchRow}>
-              <Text style={[styles.switchLabel, { color: theme.primaryText }]}>Haptic Feedback</Text>
-              <Switch
-                value={progress?.hapticsEnabled ?? true}
-                onValueChange={val => toggleSetting('hapticsEnabled', val)}
-                trackColor={{ false: theme.disabledState, true: theme.primary }}
-                thumbColor={theme.surface}
-              />
-            </View>
-          </PaperCard>
+          <Text
+            style={{
+              fontSize: 36,
+              fontWeight: '900',
+              color: theme.error,
+              marginTop: 16,
+              marginBottom: 8,
+              letterSpacing: -1,
+            }}
+          >
+            Oh no!
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: '500',
+              color: theme.mutedText,
+              marginBottom: 32,
+              textTransform: 'uppercase',
+              letterSpacing: 2,
+              textAlign: 'center',
+            }}
+          >
+            Out of drops
+          </Text>
 
-          {/* Theme Switch: Sun/Moon Cut-Out */}
-          <PaperCard radiusSize="md" style={[styles.settingsGroupCard, { marginTop: 12 }]}>
-            <TouchableOpacity style={styles.switchRow} onPress={handleTogglePalette} activeOpacity={0.7}>
-              <Text style={[styles.switchLabel, { color: theme.primaryText }]}>
-                Theme: {mode === 'white' ? 'Washi Day' : 'Night Kraft'}
-              </Text>
-              <Text style={{ color: theme.primaryText, fontSize: 18 }}>›</Text>
-            </TouchableOpacity>
-
-            {showPalette && (
-              <View style={styles.themeOptionsRow}>
-                <TouchableOpacity
-                  onPress={() => toggleTheme('white')}
-                  style={[
-                    styles.themeTile,
-                    {
-                      backgroundColor: '#FFFDF8',
-                      borderColor: mode === 'white' ? theme.primary : '#E6DEC8',
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#2B2D5B' }}>Washi Day</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => toggleTheme('dark')}
-                  style={[
-                    styles.themeTile,
-                    {
-                      backgroundColor: '#26243F',
-                      borderColor: mode === 'dark' ? theme.primary : '#353257',
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#F6EFE4' }}>Night Kraft</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </PaperCard>
-
-          <PaperButton
-            title="Resume"
-            variant="primary"
-            radiusSize="md"
-            fullWidth
-            onPress={() => setShowSettingsModal(false)}
-            style={{ marginTop: 16 }}
-          />
+          <View style={{ width: '100%', gap: 16 }}>
+            <Button
+              title="Try Again"
+              variant="danger"
+              style={{ width: '100%' }}
+              onPress={() => {
+                setShowFailModal(false);
+                setTimeout(() => handleRetry(), 300);
+              }}
+            />
+            <Button
+              title="Give Up"
+              variant="secondary"
+              style={{
+                width: '100%',
+                backgroundColor: theme.cardBackground,
+                borderWidth: 1,
+                borderColor: theme.border,
+              }}
+              onPress={() => {
+                setShowFailModal(false);
+                setTimeout(() => navigation.goBack(), 300);
+              }}
+            />
+          </View>
         </View>
       </Modal>
     </ScreenContainer>
@@ -590,80 +882,93 @@ export const GameScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 0,
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 14,
     paddingBottom: 4,
-    zIndex: 10,
   },
-  headerRoundBtn: {
+  headerCircleBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.14,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  levelTag: {
-    paddingHorizontal: 18,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderTopWidth: 2,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
-    shadowRadius: 5,
+    shadowRadius: 4,
     elevation: 3,
   },
-  levelTagText: {
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 1.5,
+  levelHeaderCenter: {
+    alignItems: 'center',
+  },
+  levelTitleText: {
+    fontSize: 27,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    textShadowColor: '#1E3A8A',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 2,
+    letterSpacing: 0.5,
+  },
+  levelStatsPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  levelStatsText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   hudRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: 'flex-start',
     paddingHorizontal: 18,
-    marginVertical: 6,
-    zIndex: 10,
+    marginTop: 6,
+    marginBottom: 6,
   },
-  hankoRow: {
+  dropsPill: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderTopWidth: 1.5,
+    borderRadius: 18,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
+    borderWidth: 1.5,
+    borderColor: '#BAE6FD',
   },
-  progressStrip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderTopWidth: 1.5,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  dropsList: {
+    flexDirection: 'row',
+    gap: 4,
   },
-  progressStripText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1,
+  dropsText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0284C7',
   },
   boardContainer: {
     flex: 1,
@@ -676,116 +981,74 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 14,
-    paddingHorizontal: 16,
-    marginVertical: 10,
+    marginTop: 10,
+    marginBottom: 10,
     zIndex: 10,
   },
-  actionPaperBtn: {
-    flex: 1,
-    maxWidth: 160,
-    minHeight: 46,
-  },
-  modalContent: {
+  hintButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    position: 'relative',
-  },
-  starsWrapper: {
-    marginBottom: 12,
-  },
-  certificateHeading: {
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  certificateSub: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  scoreDetailsCard: {
-    width: '100%',
-    padding: 16,
-    marginBottom: 10,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statValue: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  statDivider: {
-    height: 1,
-    marginVertical: 6,
-  },
-  modalButtonsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-    marginTop: 10,
-  },
-  failHankoWrapper: {
-    marginVertical: 8,
-  },
-  failHeading: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 8,
-  },
-  failSub: {
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginTop: 4,
-    marginHorizontal: 16,
-    lineHeight: 18,
-  },
-  pauseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  pauseTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  settingsGroupCard: {
-    padding: 14,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  switchLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  themeOptionsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-  },
-  themeTile: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
+    gap: 6,
+    backgroundColor: '#FEF3C7',
     borderWidth: 2,
+    borderColor: '#F59E0B',
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  hintButtonText: {
+    color: '#B45309',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  retryButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  retryButtonText: {
+    color: '#334155',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  bottomDockContainer: {
+    alignItems: 'center',
+    paddingBottom: 14,
+    width: '100%',
+  },
+  bottomDockPill: {
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    paddingHorizontal: 20,
+    paddingVertical: 6.5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bottomDockText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 2,
   },
 });

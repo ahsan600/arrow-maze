@@ -46,4 +46,6 @@ export const whiteTheme: ThemeTokens = {
   hill2: '#DFD3B8',
   hill3: '#D2C4A3',
   paperSun: '#F2B134',
+  gridDotIdle: 'rgba(43, 45, 91, 0.22)',
+  gridDotVisited: 'rgba(43, 45, 91, 0.10)',
 };

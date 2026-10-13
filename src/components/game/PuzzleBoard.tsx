@@ -103,7 +103,6 @@ const GridBackground = memo(function GridBackground({
                     height: 6,
                     borderRadius: 3,
                     backgroundColor: isVisited ? visitedDotColor : idleDotColor,
-                    opacity: isVisited ? 0.35 : 0.85,
                   }}
                 />
               </View>
@@ -493,9 +492,9 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
             cols={maxCols}
             cellSize={cellSize}
             visited={visitedCells}
-            creaseColor={theme.crease}
-            idleDotColor={theme.crease}
-            visitedDotColor={theme.muted}
+            creaseColor={mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : theme.crease}
+            idleDotColor={theme.gridDotIdle || (mode === 'dark' ? 'rgba(246, 239, 228, 0.40)' : 'rgba(43, 45, 91, 0.22)')}
+            visitedDotColor={theme.gridDotVisited || (mode === 'dark' ? 'rgba(246, 239, 228, 0.18)' : 'rgba(43, 45, 91, 0.10)')}
           />
 
           {state.arrows

@@ -46,4 +46,6 @@ export const darkTheme: ThemeTokens = {
   hill2: '#2E2B4B',
   hill3: '#39355C',
   paperSun: '#E4E0FF',
+  gridDotIdle: 'rgba(246, 239, 228, 0.40)',
+  gridDotVisited: 'rgba(246, 239, 228, 0.18)',
 };
