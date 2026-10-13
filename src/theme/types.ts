@@ -4,11 +4,14 @@ export interface ThemeTokens {
   appBackground: string;
   surface: string;
   boardBackground: string;
+  board: string;
   cardBackground: string;
   modalBackground: string;
   primaryText: string;
+  text: string;
   secondaryText: string;
   mutedText: string;
+  muted: string;
   primary: string;
   border: string;
   divider: string;
