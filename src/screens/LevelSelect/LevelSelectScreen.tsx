@@ -135,9 +135,9 @@ export const LevelSelectScreen: React.FC = () => {
       loadProgress();
     }, [loadProgress])
   );
-
   const levels = useMemo(() => {
-    const maxLevel = Math.max(100, Math.min(10000, (progress?.currentLevel || 1) + 11));
+    const current = progress?.currentLevel || 1;
+    const maxLevel = Math.max(100, current + 15);
     const flatLevels = Array.from({ length: maxLevel }, (_, i) => i + 1);
     const rows: number[][] = [];
     for (let i = 0; i < flatLevels.length; i += 4) {

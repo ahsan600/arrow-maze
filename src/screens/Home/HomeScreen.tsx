@@ -21,7 +21,7 @@ import { getProgress } from '../../storage/gameStorage';
 import { GameProgress } from '../../types/game.types';
 import { getNextIncompleteLevel } from '../../game/logic/levelLogic';
 import { useTheme } from '../../theme/ThemeContext';
-import { stageOf, tierOf, TIERS, shapeFor } from '../../game/levels/proceduralEngine';
+import { stageOf, tierOf, TIERS, shapeFor, prefetchLevels } from '../../game/levels/proceduralEngine';
 
 type RootStackParamList = {
   Home: undefined;
@@ -138,20 +138,21 @@ export const HomeScreen: React.FC = () => {
     setProgress(data);
   }, []);
 
+  const activeLevel = progress ? getNextIncompleteLevel(progress) : 1;
+
   useFocusEffect(
     useCallback(() => {
       loadProgress();
-    }, [loadProgress]),
+      prefetchLevels(activeLevel, 10).catch(() => {});
+    }, [loadProgress, activeLevel]),
   );
 
   const handlePlay = useCallback(() => {
     if (progress) {
-      const targetLevel = getNextIncompleteLevel(progress, 10000);
+      const targetLevel = getNextIncompleteLevel(progress);
       navigation.navigate('Game', { levelId: targetLevel });
     }
   }, [progress, navigation]);
-
-  const activeLevel = progress ? getNextIncompleteLevel(progress, 10000) : 1;
 
   // Metadata for current level
   const stage = stageOf(activeLevel);

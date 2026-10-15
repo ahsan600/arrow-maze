@@ -9,32 +9,13 @@ import {
   analyze,
   solve,
   validate,
+  prefetchLevels,
+  stageOf,
+  tierOf,
+  TIERS,
+  shapeFor,
+  getBoardSize,
 } from './proceduralEngine';
-
-// Old static 1-100 level definitions preserved but unused per user request:
-import { levels1_10 as _unused_levels1_10 } from './levels1_10';
-import { levels11_20 as _unused_levels11_20 } from './levels11_20';
-import { levels21_30 as _unused_levels21_30 } from './levels21_30';
-import { levels31_40 as _unused_levels31_40 } from './levels31_40';
-import { levels41_50 as _unused_levels41_50 } from './levels41_50';
-import { levels51_60 as _unused_levels51_60 } from './levels51_60';
-import { levels61_70 as _unused_levels61_70 } from './levels61_70';
-import { levels71_80 as _unused_levels71_80 } from './levels71_80';
-import { levels81_90 as _unused_levels81_90 } from './levels81_90';
-import { levels91_100 as _unused_levels91_100 } from './levels91_100';
-
-export const oldLevels: Level[] = [
-  ..._unused_levels1_10,
-  ..._unused_levels11_20,
-  ..._unused_levels21_30,
-  ..._unused_levels31_40,
-  ..._unused_levels41_50,
-  ..._unused_levels51_60,
-  ..._unused_levels61_70,
-  ..._unused_levels71_80,
-  ..._unused_levels81_90,
-  ..._unused_levels91_100,
-];
 
 export {
   getLevel,
@@ -46,10 +27,16 @@ export {
   analyze,
   solve,
   validate,
+  prefetchLevels,
+  stageOf,
+  tierOf,
+  TIERS,
+  shapeFor,
+  getBoardSize,
 };
 
 /**
- * Global allLevels proxy providing O(1) access to all 10,000 generated levels.
+ * Global allLevels proxy providing O(1) procedural access to unlimited levels.
  */
 export const allLevels: Level[] = new Proxy([] as Level[], {
   get(target, prop) {
@@ -61,7 +48,7 @@ export const allLevels: Level[] = new Proxy([] as Level[], {
           const id = parseInt(match[1], 10);
           if (id >= 1) return getLevel(id);
         }
-        for (let i = 1; i <= Math.min(1000, TOTAL_STORED_LEVELS); i++) {
+        for (let i = 1; i <= 1000; i++) {
           const l = getLevel(i);
           if (predicate(l)) return l;
         }
@@ -72,7 +59,7 @@ export const allLevels: Level[] = new Proxy([] as Level[], {
       return TOTAL_STORED_LEVELS;
     }
     const index = typeof prop === 'string' ? Number(prop) : NaN;
-    if (!isNaN(index) && index >= 0 && index < TOTAL_STORED_LEVELS) {
+    if (!isNaN(index) && index >= 0) {
       return getLevel(index + 1);
     }
     return (target as any)[prop];

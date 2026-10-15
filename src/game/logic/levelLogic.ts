@@ -11,13 +11,15 @@ export const isLevelCompleted = (levelId: number, progress: GameProgress | null)
   return progress.completedLevels.includes(levelId);
 };
 
-export const getNextIncompleteLevel = (progress: GameProgress | null, totalLevels: number = 10000): number => {
+export const getNextIncompleteLevel = (
+  progress: GameProgress | null,
+  totalLevels: number = 1000000,
+): number => {
   if (!progress) return 1;
   const completed = new Set(progress.completedLevels || []);
-  for (let i = 1; i <= totalLevels; i++) {
-    if (!completed.has(i)) {
-      return i;
-    }
+  let candidate = 1;
+  while (completed.has(candidate) && candidate < totalLevels) {
+    candidate++;
   }
-  return Math.min(totalLevels, Math.max(1, progress.currentLevel || totalLevels));
+  return candidate;
 };

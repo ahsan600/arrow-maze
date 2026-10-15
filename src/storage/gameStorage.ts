@@ -60,6 +60,21 @@ export const setCurrentLevel = async (level: number): Promise<void> => {
   await setProgress({ ...progress, currentLevel: safeLevel });
 };
 
-export const resetProgress = async (): Promise<void> => {
-  await setProgress(DEFAULT_PROGRESS);
+export const resetProgress = async (preservePreferences: boolean = true): Promise<void> => {
+  try {
+    if (preservePreferences) {
+      const current = await getProgress();
+      await setProgress({
+        ...DEFAULT_PROGRESS,
+        soundEnabled: current.soundEnabled,
+        hapticsEnabled: current.hapticsEnabled,
+        theme: current.theme,
+      });
+    } else {
+      await setProgress(DEFAULT_PROGRESS);
+    }
+  } catch (e) {
+    console.error('Error resetting progress', e);
+  }
 };
+

@@ -9,17 +9,13 @@ import {
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Line } from 'react-native-svg';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { IconButton } from '../../components/ui/IconButton';
 import { colors } from '../../theme/colors';
 import { getProgress, setProgress } from '../../storage/gameStorage';
 import { PuzzleBoard } from '../../components/game/PuzzleBoard';
-import { allLevels, getLevel } from '../../game/levels';
-import {
-  generateLevelData,
-  getAnimalNameForLevel,
-} from '../../game/levels/LevelGenerator';
+import { getLevel, prefetchLevels, tierOf, TIERS } from '../../game/levels';
 import {
   PuzzleState,
   isLevelComplete,
@@ -66,14 +62,17 @@ export const GameScreen: React.FC = () => {
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [hintsUsed, setHintsUsed] = useState<number>(0);
   const [hintArrowId, setHintArrowId] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState<number>(0);
 
   const loadLevel = useCallback(async () => {
     // Find the requested level, or default to level 1 if not found
     const targetLevelId = levelId > 0 ? levelId : 1;
-    let levelDef = getLevel(targetLevelId);
+    const levelDef = getLevel(targetLevelId);
 
-    // We clone the arrows to prevent mutating the original level definition
-    // and automatically extend 1-cell arrows to have a tail
+    // Pre-fetch the next batch of levels in the background for instant play
+    prefetchLevels(targetLevelId + 1, 10).catch(() => {});
+
+    // Ensure arrow cells are properly cloned
     const arrows = levelDef.arrows.map(a => {
       let newCells = [...a.cells.map(c => ({ ...c }))];
       if (newCells.length === 1) {
@@ -83,8 +82,6 @@ export const GameScreen: React.FC = () => {
         else if (a.direction === 'DOWN') tail.r -= 1;
         else if (a.direction === 'LEFT') tail.c += 1;
         else if (a.direction === 'RIGHT') tail.c -= 1;
-
-        // Arrow piece expects cells to be ordered from tail to head
         newCells = [tail, head];
       }
       return {
@@ -93,53 +90,19 @@ export const GameScreen: React.FC = () => {
       };
     });
 
-    // Calculate bounding box for dynamic grid
-    let minR = Infinity,
-      maxR = -Infinity;
-    let minC = Infinity,
-      maxC = -Infinity;
-
-    arrows.forEach(a => {
-      a.cells.forEach(c => {
-        if (c.r < minR) minR = c.r;
-        if (c.r > maxR) maxR = c.r;
-        if (c.c < minC) minC = c.c;
-        if (c.c > maxC) maxC = c.c;
-      });
-    });
-
-    if (minR === Infinity) {
-      minR = 0;
-      maxR = 3;
-      minC = 0;
-      maxC = 3; // Fallback
-    }
-
-    const normalizedArrows = arrows.map(a => ({
-      ...a,
-      cells: a.cells.map(c => ({
-        r: c.r - minR,
-        c: c.c - minC,
-      })),
-    }));
-
-    const dynamicGridSize = {
-      rows: maxR - minR + 1,
-      cols: maxC - minC + 1,
-    };
-
     setPuzzleState({
-      gridSize: dynamicGridSize,
-      arrows: normalizedArrows,
+      gridSize: levelDef.gridSize,
+      arrows,
     });
     setDrops(levelDef.maxHearts || 3);
     setFailedAttempts(0);
     setHintsUsed(0);
     setHintArrowId(null);
+    setSessionKey(k => k + 1);
 
     const p = await getProgress();
     setProgressState(p);
-    setShowInGameTutorial(!p.tutorialCompleted && levelId <= 3);
+    setShowInGameTutorial(!p.tutorialCompleted && targetLevelId <= 3);
   }, [levelId]);
 
   const toggleSetting = useCallback(
@@ -185,6 +148,7 @@ export const GameScreen: React.FC = () => {
 
   const handleRetry = useCallback(() => {
     setShowFailModal(false);
+    setSessionKey(k => k + 1);
     loadLevel();
   }, [loadLevel]);
 
@@ -267,24 +231,38 @@ export const GameScreen: React.FC = () => {
         <IconButton
           icon="back"
           onPress={() => navigation.goBack()}
-          iconColor="#0F172A"
-          style={styles.headerCircleBtn}
+          iconColor={theme.primaryText}
+          style={[styles.headerCircleBtn, { backgroundColor: theme.cardBackground }]}
           size={24}
         />
 
         <View style={styles.levelHeaderCenter}>
-          <Text style={styles.levelTitleText}>Level {levelId}</Text>
-          <View style={styles.levelStatsPill}>
-            <Text style={styles.levelStatsText}>
+          <Text style={[styles.levelTitleText, { color: theme.primaryText }]}>Level {levelId}</Text>
+          <View
+            style={[
+              styles.levelStatsPill,
+              {
+                backgroundColor:
+                  mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.08)'
+                    : 'rgba(43, 45, 91, 0.06)',
+                borderColor: theme.crease,
+              },
+            ]}
+          >
+            <Text style={[styles.levelStatsText, { color: theme.secondaryText }]}>
               Failed: {failedAttempts} • Hints: {hintsUsed}
             </Text>
           </View>
         </View>
 
         <View style={styles.headerRight}>
-          <SettingsButton
+          <IconButton
+            icon="settings"
             onPress={() => setShowSettingsModal(true)}
-            size={44}
+            iconColor={theme.primaryText}
+            style={[styles.headerCircleBtn, { backgroundColor: theme.cardBackground }]}
+            size={24}
           />
         </View>
       </View>
@@ -303,15 +281,18 @@ export const GameScreen: React.FC = () => {
 
       {/* Game Board */}
       <View style={styles.boardContainer}>
-        <PuzzleBoard
-          state={puzzleState}
-          onStateChange={handleStateChange}
-          disabled={isLevelComplete(puzzleState) || drops === 0}
-          onArrowBlocked={handleArrowBlocked}
-          onArrowFailed={() => setFailedAttempts(f => f + 1)}
-          showInGameTutorial={showInGameTutorial}
-          hintArrowId={hintArrowId}
-        />
+        {puzzleState && (
+          <PuzzleBoard
+            key={`board-${levelId}-${sessionKey}`}
+            state={puzzleState}
+            onStateChange={handleStateChange}
+            disabled={isLevelComplete(puzzleState) || drops === 0}
+            onArrowBlocked={handleArrowBlocked}
+            onArrowFailed={() => setFailedAttempts(f => f + 1)}
+            showInGameTutorial={showInGameTutorial}
+            hintArrowId={hintArrowId}
+          />
+        )}
       </View>
 
       {/* Floating Action Controls: Hint & Restart */}
@@ -348,52 +329,58 @@ export const GameScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Bottom Floating Badge resting above wooden dock */}
-      <View style={styles.bottomDockContainer}>
-        <View style={styles.bottomDockPill}>
-          <Text style={styles.bottomDockText}>CHALLENGE ACTIVE</Text>
-        </View>
-      </View>
 
       <Modal visible={showCompleteModal} position="center">
         <View
           style={{
             alignItems: 'center',
-            position: 'relative',
-            marginTop: 24,
-            paddingBottom: 8,
+            paddingVertical: 8,
           }}
         >
+          {/* Animated Gold Stars Trophy Showcase */}
           <View
             style={{
-              position: 'absolute',
-              top: -80,
-              zIndex: 10,
-              transform: [{ scale: 1.25 }],
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 8,
+              marginBottom: 4,
             }}
           >
-            <StarsDisplay stars={earnedStars} size={52} animate={true} />
+            <StarsDisplay stars={earnedStars} size={48} animate={true} />
           </View>
 
           <Text
             style={{
-              fontSize: 30,
+              fontSize: 28,
               fontWeight: '900',
               color: theme.primaryText,
-              marginTop: 40,
-              marginBottom: 24,
+              letterSpacing: -0.5,
+              textAlign: 'center',
+              marginBottom: 4,
             }}
           >
             Well Done!
+          </Text>
+
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: '500',
+              color: theme.secondaryText,
+              textAlign: 'center',
+              marginBottom: 18,
+            }}
+          >
+            Level {levelId || 1} Cleared Successfully
           </Text>
 
           <View
             style={{
               width: '100%',
               backgroundColor: theme.cardBackground,
-              borderRadius: 24,
-              padding: 20,
-              marginBottom: 16,
+              borderRadius: 22,
+              padding: 18,
+              marginBottom: 18,
               borderWidth: 1,
               borderColor: theme.border,
             }}
@@ -409,7 +396,7 @@ export const GameScreen: React.FC = () => {
                 style={{
                   color: theme.mutedText,
                   fontWeight: '500',
-                  fontSize: 16,
+                  fontSize: 15,
                 }}
               >
                 Difficulty
@@ -418,10 +405,10 @@ export const GameScreen: React.FC = () => {
                 style={{
                   color: theme.primaryText,
                   fontWeight: 'bold',
-                  fontSize: 16,
+                  fontSize: 15,
                 }}
               >
-                Normal
+                {TIERS[tierOf(levelId)] || 'Very Hard'}
               </Text>
             </View>
             <View
@@ -435,7 +422,7 @@ export const GameScreen: React.FC = () => {
                 style={{
                   color: theme.mutedText,
                   fontWeight: '500',
-                  fontSize: 16,
+                  fontSize: 15,
                 }}
               >
                 Score
@@ -444,7 +431,7 @@ export const GameScreen: React.FC = () => {
                 style={{
                   color: theme.primaryText,
                   fontWeight: 'bold',
-                  fontSize: 16,
+                  fontSize: 15,
                 }}
               >
                 {1000 + drops * 100}
@@ -457,7 +444,7 @@ export const GameScreen: React.FC = () => {
                 style={{
                   color: theme.mutedText,
                   fontWeight: '500',
-                  fontSize: 16,
+                  fontSize: 15,
                 }}
               >
                 Today's Levels
@@ -466,7 +453,7 @@ export const GameScreen: React.FC = () => {
                 style={{
                   color: theme.primaryText,
                   fontWeight: 'bold',
-                  fontSize: 16,
+                  fontSize: 15,
                 }}
               >
                 {progress?.dailyPlayedCount || 1}
@@ -483,30 +470,47 @@ export const GameScreen: React.FC = () => {
                 borderRadius: 16,
                 paddingVertical: 12,
                 marginTop: 16,
+                borderWidth: 1,
+                borderColor: theme.border,
               }}
             >
-              <Text style={{ color: theme.secondaryText, fontWeight: 'bold' }}>
-                🎯 {puzzleState.arrows.length}
-              </Text>
-              <View
-                style={{ width: 1, height: 16, backgroundColor: theme.border }}
-              />
-              <Text style={{ color: theme.secondaryText, fontWeight: 'bold' }}>
-                ❌ {failedAttempts}
-              </Text>
-              <View
-                style={{ width: 1, height: 16, backgroundColor: theme.border }}
-              />
-              <Text style={{ color: theme.secondaryText, fontWeight: 'bold' }}>
-                💡 {hintsUsed}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill={theme.primaryText}>
+                  <Path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" />
+                </Svg>
+                <Text style={{ color: theme.primaryText, fontWeight: '800', fontSize: 14 }}>
+                  {puzzleState.arrows.length}
+                </Text>
+              </View>
+
+              <View style={{ width: 1, height: 16, backgroundColor: theme.border }} />
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill={theme.error}>
+                  <Path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                </Svg>
+                <Text style={{ color: theme.error, fontWeight: '800', fontSize: 14 }}>
+                  {failedAttempts}
+                </Text>
+              </View>
+
+              <View style={{ width: 1, height: 16, backgroundColor: theme.border }} />
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="#D97706">
+                  <Path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z" />
+                </Svg>
+                <Text style={{ color: '#D97706', fontWeight: '800', fontSize: 14 }}>
+                  {hintsUsed}
+                </Text>
+              </View>
             </View>
           </View>
 
           <Button
             title="Next Level"
             variant="primary"
-            style={{ width: '100%', marginTop: 8 }}
+            style={{ width: '100%' }}
             onPress={() => {
               setShowCompleteModal(false);
               setTimeout(() => {
@@ -518,9 +522,9 @@ export const GameScreen: React.FC = () => {
           <View
             style={{
               flexDirection: 'row',
-              gap: 16,
+              gap: 12,
               width: '100%',
-              marginTop: 16,
+              marginTop: 12,
             }}
           >
             <Button
@@ -529,7 +533,7 @@ export const GameScreen: React.FC = () => {
               style={{
                 flex: 1,
                 backgroundColor: theme.cardBackground,
-                borderWidth: 1,
+                borderWidth: 1.5,
                 borderColor: theme.border,
               }}
               onPress={() => {
@@ -543,7 +547,7 @@ export const GameScreen: React.FC = () => {
               style={{
                 flex: 1,
                 backgroundColor: theme.cardBackground,
-                borderWidth: 1,
+                borderWidth: 1.5,
                 borderColor: theme.border,
               }}
               onPress={() => {
@@ -560,20 +564,22 @@ export const GameScreen: React.FC = () => {
         position="center"
         onClose={() => setShowSettingsModal(false)}
       >
-        <View style={{ paddingVertical: 16 }}>
+        <View style={{ paddingVertical: 8 }}>
+          {/* Header */}
           <View
             style={{
               flexDirection: 'row',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 24,
+              marginBottom: 20,
             }}
           >
             <Text
               style={{
                 fontSize: 24,
-                fontWeight: 'bold',
+                fontWeight: '900',
                 color: theme.primaryText,
+                letterSpacing: -0.5,
               }}
             >
               Paused
@@ -582,50 +588,68 @@ export const GameScreen: React.FC = () => {
               icon="close"
               onPress={() => setShowSettingsModal(false)}
               iconColor={theme.primaryText}
-              size={28}
+              size={24}
             />
           </View>
 
+          {/* Unified Settings Card */}
           <View
             style={{
               backgroundColor: theme.cardBackground,
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 24,
+              borderRadius: 22,
+              padding: 18,
+              marginBottom: 20,
               borderWidth: 1,
               borderColor: theme.border,
             }}
           >
+            {/* Sound Row */}
             <View
               style={{
                 flexDirection: 'row',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: 20,
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 20, marginRight: 12 }}>🔊</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(43, 45, 91, 0.06)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill={theme.primaryText}>
+                    <Path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                  </Svg>
+                </View>
                 <Text
                   style={{
-                    fontSize: 18,
-                    fontWeight: '500',
+                    fontSize: 16,
+                    fontWeight: '700',
                     color: theme.primaryText,
                   }}
                 >
-                  Sound
+                  Sound Effects
                 </Text>
               </View>
               <Switch
                 value={progress?.soundEnabled ?? true}
                 onValueChange={val => toggleSetting('soundEnabled', val)}
                 trackColor={{
-                  false: theme.disabledState,
-                  true: theme.primaryText,
+                  false: mode === 'dark' ? '#3B3860' : '#E2E8F0',
+                  true: theme.primary,
                 }}
-                thumbColor={theme.appBackground}
+                thumbColor="#FFFFFF"
               />
             </View>
+
+            <View style={{ height: 1, backgroundColor: theme.divider, marginVertical: 14 }} />
+
+            {/* Vibration Row */}
             <View
               style={{
                 flexDirection: 'row',
@@ -633,213 +657,355 @@ export const GameScreen: React.FC = () => {
                 alignItems: 'center',
               }}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 20, marginRight: 12 }}>📳</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(43, 45, 91, 0.06)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill={theme.primaryText}>
+                    <Path d="M0 15h2V9H0v6zm3 2h2V7H3v10zm19-8v6h2V9h-2zm-3 8h2V7h-2v10zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z" />
+                  </Svg>
+                </View>
                 <Text
                   style={{
-                    fontSize: 18,
-                    fontWeight: '500',
+                    fontSize: 16,
+                    fontWeight: '700',
                     color: theme.primaryText,
                   }}
                 >
-                  Vibration
+                  Haptic Feedback
                 </Text>
               </View>
               <Switch
                 value={progress?.hapticsEnabled ?? true}
                 onValueChange={val => toggleSetting('hapticsEnabled', val)}
                 trackColor={{
-                  false: theme.disabledState,
-                  true: theme.primaryText,
+                  false: mode === 'dark' ? '#3B3860' : '#E2E8F0',
+                  true: theme.primary,
                 }}
-                thumbColor={theme.appBackground}
+                thumbColor="#FFFFFF"
               />
             </View>
-          </View>
 
-          <View
-            style={{
-              backgroundColor: theme.cardBackground,
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 24,
-              borderWidth: 1,
-              borderColor: theme.border,
-            }}
-          >
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-              onPress={handleTogglePalette}
-              activeOpacity={0.7}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ fontSize: 20, marginRight: 16 }}>🎨</Text>
+            <View style={{ height: 1, backgroundColor: theme.divider, marginVertical: 14 }} />
+
+            {/* Theme Appearance Row */}
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(43, 45, 91, 0.06)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill={theme.primaryText}>
+                    <Path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+                  </Svg>
+                </View>
                 <Text
                   style={{
-                    fontSize: 18,
-                    fontWeight: '500',
+                    fontSize: 16,
+                    fontWeight: '700',
                     color: theme.primaryText,
                   }}
                 >
-                  Color Palette
+                  Theme Style
                 </Text>
               </View>
-              <Text
-                style={{
-                  color: theme.primaryText,
-                  fontSize: 24,
-                  fontWeight: '300',
-                  transform: [{ rotate: showPalette ? '90deg' : '0deg' }],
-                }}
-              >
-                ›
-              </Text>
-            </TouchableOpacity>
 
-            {showPalette && (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginTop: 16,
-                  paddingTop: 16,
-                  borderTopWidth: 1,
-                  borderTopColor: theme.divider,
-                  justifyContent: 'space-around',
-                }}
-              >
-                <View style={{ alignItems: 'center', gap: 8 }}>
-                  <TouchableOpacity
-                    onPress={() => toggleTheme('dark')}
-                    style={{
-                      width: 64,
-                      height: 80,
-                      borderRadius: 8,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 2,
-                      borderColor:
-                        mode === 'dark' ? theme.primaryText : 'transparent',
-                      backgroundColor: '#000000',
-                      shadowColor: '#000',
-                      shadowOpacity: 0.1,
-                      shadowRadius: 4,
-                      elevation: 2,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: '500',
-                      color: theme.primaryText,
-                      marginTop: 8,
-                    }}
-                  >
-                    Dark Mode
-                  </Text>
-                </View>
-
-                <View
+              {/* Dual Theme Selector Pills */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => toggleTheme('white')}
                   style={{
-                    width: 1,
-                    height: 40,
-                    backgroundColor: theme.divider,
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor: mode === 'white' ? (theme.primaryText === '#2B2D5B' ? '#F6EFE4' : '#FFFDF8') : 'transparent',
+                    borderWidth: 2,
+                    borderColor: mode === 'white' ? theme.primary : theme.border,
                   }}
-                />
-
-                <View style={{ alignItems: 'center', gap: 8 }}>
-                  <TouchableOpacity
-                    onPress={() => toggleTheme('white')}
+                >
+                  <View
                     style={{
-                      width: 64,
-                      height: 80,
+                      width: 16,
+                      height: 16,
                       borderRadius: 8,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 2,
-                      borderColor:
-                        mode === 'white' ? theme.primaryText : 'transparent',
-                      backgroundColor: '#ffffff',
-                      shadowColor: '#000',
-                      shadowOpacity: 0.1,
-                      shadowRadius: 4,
-                      elevation: 2,
+                      backgroundColor: '#F6EFE4',
+                      borderWidth: 1.5,
+                      borderColor: '#D4C6B2',
                     }}
                   />
                   <Text
                     style={{
                       fontSize: 14,
-                      fontWeight: '500',
-                      color: theme.primaryText,
-                      marginTop: 8,
+                      fontWeight: mode === 'white' ? '800' : '600',
+                      color: mode === 'white' ? theme.primaryText : theme.mutedText,
                     }}
                   >
-                    White Mode
+                    Washi Day
                   </Text>
-                </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => toggleTheme('dark')}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor: mode === 'dark' ? '#26243F' : 'transparent',
+                    borderWidth: 2,
+                    borderColor: mode === 'dark' ? theme.primary : theme.border,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 8,
+                      backgroundColor: '#1B1A2E',
+                      borderWidth: 1.5,
+                      borderColor: '#4A4675',
+                    }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: mode === 'dark' ? '800' : '600',
+                      color: mode === 'dark' ? theme.primaryText : theme.mutedText,
+                    }}
+                  >
+                    Night Kraft
+                  </Text>
+                </TouchableOpacity>
               </View>
-            )}
+            </View>
           </View>
 
+          {/* Action Buttons: Resume as primary, Restart & Menu as secondary */}
           <Button
-            title="Restart"
+            title="Resume"
             variant="primary"
-            onPress={() => {
-              setShowSettingsModal(false);
-              loadLevel();
-            }}
-            fullWidth
+            style={{ width: '100%' }}
+            onPress={() => setShowSettingsModal(false)}
           />
+
+          <View style={{ flexDirection: 'row', gap: 12, width: '100%', marginTop: 12 }}>
+            <Button
+              title="Restart"
+              variant="secondary"
+              style={{
+                flex: 1,
+                backgroundColor: theme.cardBackground,
+                borderWidth: 1.5,
+                borderColor: theme.border,
+              }}
+              onPress={() => {
+                setShowSettingsModal(false);
+                loadLevel();
+              }}
+            />
+            <Button
+              title="Menu"
+              variant="secondary"
+              style={{
+                flex: 1,
+                backgroundColor: theme.cardBackground,
+                borderWidth: 1.5,
+                borderColor: theme.border,
+              }}
+              onPress={() => {
+                setShowSettingsModal(false);
+                navigation.goBack();
+              }}
+            />
+          </View>
         </View>
       </Modal>
 
-      <Modal visible={showFailModal} position="center">
-        <View
-          style={{
-            alignItems: 'center',
-            position: 'relative',
-            marginTop: 24,
-            paddingBottom: 8,
-          }}
-        >
-          <View style={{ position: 'absolute', top: -70, zIndex: 10 }}>
-            <WaterDrop size={64} empty={true} />
-          </View>
-
-          <Text
+      <Modal visible={showFailModal} position="center" onClose={() => setShowFailModal(false)}>
+        <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+          {/* Hero Emblem Badge */}
+          <View
             style={{
-              fontSize: 36,
-              fontWeight: '900',
-              color: theme.error,
-              marginTop: 16,
-              marginBottom: 8,
-              letterSpacing: -1,
+              width: 76,
+              height: 76,
+              borderRadius: 38,
+              backgroundColor: mode === 'dark' ? 'rgba(228, 87, 46, 0.15)' : 'rgba(228, 87, 46, 0.08)',
+              borderWidth: 2,
+              borderColor: mode === 'dark' ? 'rgba(228, 87, 46, 0.35)' : 'rgba(228, 87, 46, 0.20)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
             }}
           >
-            Oh no!
+            <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"
+                stroke={theme.error}
+                strokeWidth={2.2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill={mode === 'dark' ? 'rgba(228, 87, 46, 0.25)' : 'rgba(228, 87, 46, 0.15)'}
+              />
+              <Line
+                x1="8"
+                y1="16"
+                x2="16"
+                y2="8"
+                stroke={theme.error}
+                strokeWidth={2.2}
+                strokeLinecap="round"
+              />
+            </Svg>
+          </View>
+
+          {/* Title & Subtitle */}
+          <Text
+            style={{
+              fontSize: 28,
+              fontWeight: '900',
+              color: theme.primaryText,
+              letterSpacing: -0.5,
+              textAlign: 'center',
+              marginBottom: 6,
+            }}
+          >
+            Out of Drops!
           </Text>
+
           <Text
             style={{
               fontSize: 14,
               fontWeight: '500',
-              color: theme.mutedText,
-              marginBottom: 32,
-              textTransform: 'uppercase',
-              letterSpacing: 2,
+              color: theme.secondaryText,
               textAlign: 'center',
+              lineHeight: 20,
+              paddingHorizontal: 12,
+              marginBottom: 20,
             }}
           >
-            Out of drops
+            You used all 3 drops on this puzzle. Don't worry, every maze has a solution!
           </Text>
 
-          <View style={{ width: '100%', gap: 16 }}>
+          {/* Progress / Stats Card */}
+          <View
+            style={{
+              width: '100%',
+              backgroundColor: theme.appBackground,
+              borderRadius: 18,
+              paddingVertical: 14,
+              paddingHorizontal: 16,
+              marginBottom: 20,
+              flexDirection: 'row',
+              justifyContent: 'space-around',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <View style={{ alignItems: 'center' }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: theme.mutedText,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                }}
+              >
+                Level
+              </Text>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: '800',
+                  color: theme.primaryText,
+                  marginTop: 2,
+                }}
+              >
+                {levelId || 1}
+              </Text>
+            </View>
+
+            <View style={{ width: 1, height: 24, backgroundColor: theme.border }} />
+
+            <View style={{ alignItems: 'center' }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: theme.mutedText,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                }}
+              >
+                Remaining
+              </Text>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: '800',
+                  color: theme.error,
+                  marginTop: 2,
+                }}
+              >
+                {puzzleState?.arrows.filter(a => a.active && !a.cleared).length || 0}
+              </Text>
+            </View>
+
+            <View style={{ width: 1, height: 24, backgroundColor: theme.border }} />
+
+            <View style={{ alignItems: 'center' }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: theme.mutedText,
+                  textTransform: 'uppercase',
+                  letterSpacing: 1,
+                }}
+              >
+                Hints
+              </Text>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: '800',
+                  color: '#D97706',
+                  marginTop: 2,
+                }}
+              >
+                {hintsUsed}
+              </Text>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={{ width: '100%', gap: 12 }}>
             <Button
               title="Try Again"
-              variant="danger"
+              variant="primary"
               style={{ width: '100%' }}
               onPress={() => {
                 setShowFailModal(false);
@@ -847,7 +1013,7 @@ export const GameScreen: React.FC = () => {
               }}
             />
             <Button
-              title="Give Up"
+              title="Menu"
               variant="secondary"
               style={{
                 width: '100%',
@@ -881,7 +1047,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   headerCircleBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -889,38 +1054,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
   levelHeaderCenter: {
     alignItems: 'center',
   },
   levelTitleText: {
-    fontSize: 27,
+    fontSize: 25,
     fontWeight: '900',
-    color: '#FFFFFF',
-    textShadowColor: '#1E3A8A',
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 2,
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
   },
   levelStatsPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginTop: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 3,
+    borderWidth: 1,
   },
   levelStatsText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#334155',
+    letterSpacing: 0.2,
   },
   headerRight: {
     flexDirection: 'row',
@@ -1014,29 +1170,5 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 14,
     fontWeight: '700',
-  },
-  bottomDockContainer: {
-    alignItems: 'center',
-    paddingBottom: 14,
-    width: '100%',
-  },
-  bottomDockPill: {
-    backgroundColor: 'rgba(15, 23, 42, 0.82)',
-    paddingHorizontal: 20,
-    paddingVertical: 6.5,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  bottomDockText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 2,
   },
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal as RNModal, View, Pressable } from 'react-native';
+import { Modal as RNModal, View, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 
 export interface ModalProps {
@@ -23,12 +23,51 @@ export const Modal: React.FC<ModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: position === 'center' ? 'center' : 'flex-end', alignItems: position === 'center' ? 'center' : undefined, padding: 16 }}>
-        <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
-        <View style={{ width: '100%', maxWidth: 384, backgroundColor: theme.modalBackground, borderRadius: 24, padding: 24, paddingBottom: position === 'bottom' ? 40 : 24, marginBottom: position === 'bottom' ? 0 : undefined, alignSelf: 'center', borderWidth: 1, borderColor: theme.border }}>
+      <View
+        style={[
+          styles.backdrop,
+          {
+            justifyContent: position === 'center' ? 'center' : 'flex-end',
+            alignItems: position === 'center' ? 'center' : undefined,
+          },
+        ]}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.modalBackground,
+              borderColor: theme.border,
+              paddingBottom: position === 'bottom' ? 40 : 24,
+              marginBottom: position === 'bottom' ? 0 : undefined,
+            },
+          ]}
+        >
           {children}
         </View>
       </View>
     </RNModal>
   );
 };
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    padding: 20,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 390,
+    borderRadius: 28,
+    padding: 24,
+    alignSelf: 'center',
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+});

@@ -440,6 +440,7 @@ export const ArrowPiece: React.FC<ArrowPieceProps> = React.memo(
             onPress={() => !disabled && onPress(arrow.id)}
             onLongPress={() => !disabled && onLongPress && onLongPress(arrow.id)}
             delayLongPress={400}
+            pointerEvents={disabled ? 'none' : 'auto'}
             style={{
               position: 'absolute',
               left: (cell.c - minC) * cellSize,
@@ -457,6 +458,7 @@ export const ArrowPiece: React.FC<ArrowPieceProps> = React.memo(
     if (prev.arrow.failed !== next.arrow.failed) return false;
     if (prev.shakeTrigger !== next.shakeTrigger) return false;
     if (prev.cellSize !== next.cellSize) return false;
+    if (prev.disabled !== next.disabled) return false;
     if (prev.animProgress !== next.animProgress) return false;
     if (prev.fullPath !== next.fullPath) return false;
     if (prev.arrow.cells.length !== next.arrow.cells.length) return false;

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, memo } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import {
   useSharedValue,
@@ -10,6 +10,7 @@ import {
   makeMutable,
   useAnimatedStyle,
   withRepeat,
+  runOnJS,
 } from 'react-native-reanimated';
 import Animated from 'react-native-reanimated';
 import {
@@ -20,6 +21,7 @@ import {
 } from '../../game/engine/PuzzleEngine';
 import { ArrowPiece } from './ArrowPiece';
 import { useTheme } from '../../theme/ThemeContext';
+import { TutorialPointer } from './TutorialPointer';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 
 const TICK_MS = 25;
@@ -99,8 +101,8 @@ const GridBackground = memo(function GridBackground({
               >
                 <View
                   style={{
-                    width: 6,
-                    height: 6,
+                    width: Math.max(3, Math.min(6, cellSize * 0.12)),
+                    height: Math.max(3, Math.min(6, cellSize * 0.12)),
                     borderRadius: 3,
                     backgroundColor: isVisited ? visitedDotColor : idleDotColor,
                   }}
@@ -132,6 +134,36 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
   onStateChangeRef.current = onStateChange;
   onArrowBlockedRef.current = onArrowBlocked;
   onArrowFailedRef.current = onArrowFailed;
+
+  // Adaptive Cell Sizing:
+  // Maintain readable minimum cell size (40px) so arrows remain crisp & easy to tap,
+  // and scale the camera zoom to fit large boards smoothly.
+  const screenWidth = Dimensions.get('window').width;
+  const screenHeight = Dimensions.get('window').height;
+  const boardPadding = 32;
+  const availableWidth = screenWidth - boardPadding;
+  const availableHeight = screenHeight * 0.56;
+  const maxRows = state.gridSize.rows;
+  const maxCols = state.gridSize.cols;
+
+  const MIN_CELL_SIZE = 40;
+  const MAX_CELL_SIZE = 76;
+  const naturalCellSize = Math.floor(
+    Math.min(availableWidth / maxCols, availableHeight / maxRows, MAX_CELL_SIZE),
+  );
+  const cellSize = Math.max(MIN_CELL_SIZE, naturalCellSize);
+  const boardWidth = maxCols * cellSize;
+  const boardHeight = maxRows * cellSize;
+
+  // Auto-fit scale to frame the entire board on screen
+  const fitScale = Math.min(
+    availableWidth / boardWidth,
+    availableHeight / boardHeight,
+    1.0,
+  );
+
+  const minScale = Math.max(0.15, fitScale * 0.72);
+  const maxScale = Math.max(3.5, 1.3 / fitScale);
 
   const [movingArrows, setMovingArrows] = useState<Set<string>>(new Set());
   const [shakeTriggers, setShakeTriggers] = useState<Record<string, number>>({});
@@ -174,25 +206,35 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       markVisited(a.cells, state.gridSize.rows, state.gridSize.cols);
   }, [state, markVisited]);
 
-  // Sync state ref
+  // Gestures for zoom & pan
+  const boardScale = useSharedValue(fitScale);
+  const savedScale = useSharedValue(fitScale);
+  const translateX = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  // Unmount cleanup: cancel any remaining animations when switching levels or restarting
   useEffect(() => {
-    if (state !== stateRef.current) {
+    return () => {
       movingRef.current.forEach(arrowId => {
         const sv = animProgressMap.current[arrowId];
         if (sv) cancelAnimation(sv);
       });
       movingRef.current.clear();
-      setMovingArrows(new Set());
-      setActivePaths({});
-      activePathsRef.current = {};
-      setFailedIds({});
-      setShakeTriggers({});
-      setTrajectories({});
-      visitedRef.current.clear();
-      setVisitedCells(new Set());
-      stateRef.current = state;
-    }
+    };
+  }, []);
+
+  // Keep stateRef in sync with latest props without cancelling ongoing animations or resetting zoom
+  useEffect(() => {
+    stateRef.current = state;
   }, [state]);
+
+  // Update scale if layout/fitScale changes
+  useEffect(() => {
+    boardScale.value = fitScale;
+    savedScale.value = fitScale;
+  }, [fitScale, boardScale, savedScale]);
 
   // Hint trajectory
   useEffect(() => {
@@ -229,37 +271,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
   const staticProgress = useSharedValue(1);
 
-  // Tutorial animation
-  const handScale = useSharedValue(1);
-  useEffect(() => {
-    if (showInGameTutorial) {
-      handScale.value = withRepeat(
-        withSequence(
-          withTiming(1.2, { duration: 500 }),
-          withTiming(1, { duration: 500 }),
-        ),
-        -1,
-        true,
-      );
-    }
-  }, [showInGameTutorial, handScale]);
-  const handStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: handScale.value }],
-  }));
 
-  // Cell sizing
-  const screenWidth = Dimensions.get('window').width;
-  const screenHeight = Dimensions.get('window').height;
-  const boardPadding = 40;
-  const availableWidth = screenWidth - boardPadding;
-  const availableHeight = screenHeight * 0.58;
-  const maxRows = state.gridSize.rows;
-  const maxCols = state.gridSize.cols;
-  const cellSize = Math.floor(
-    Math.min(availableWidth / maxCols, availableHeight / maxRows, 80),
-  );
-  const boardWidth = maxCols * cellSize;
-  const boardHeight = maxRows * cellSize;
 
   // Stop arrow
   const stopArrow = useCallback((arrowId: string) => {
@@ -286,14 +298,15 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
       const L = arrow.cells.length;
       const { rows, cols } = cur.gridSize;
-      const cells = fullPath.slice(stepIndex, stepIndex + L);
+      const totalSteps = fullPath.length - L;
+      const safeStep = Math.min(stepIndex, totalSteps);
+      const cells = fullPath.slice(safeStep, safeStep + L);
       if (cells.length < L) return;
 
       const isCleared = cells.every(
         c => c.r < 0 || c.r >= rows || c.c < 0 || c.c >= cols,
       );
-      const totalSteps = fullPath.length - L;
-      const finished = isCleared || stepIndex >= totalSteps;
+      const finished = isCleared || safeStep >= totalSteps;
 
       const next: PuzzleState = {
         ...cur,
@@ -313,21 +326,41 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     [stopArrow],
   );
 
+  const handleAnimationComplete = useCallback(
+    (arrowId: string, totalSteps: number) => {
+      if (movingRef.current.has(arrowId)) {
+        handleStepReached(arrowId, totalSteps);
+      }
+    },
+    [handleStepReached],
+  );
+
   // Start arrow flying
-  const startArrow = useCallback((arrowId: string, totalSteps: number) => {
-    if (!animProgressMap.current[arrowId]) {
-      animProgressMap.current[arrowId] = makeMutable(0);
-    }
-    const sv = animProgressMap.current[arrowId];
-    movingRef.current.add(arrowId);
-    setMovingArrows(new Set(movingRef.current));
-    cancelAnimation(sv);
-    sv.value = 0;
-    sv.value = withTiming(1, {
-      duration: totalSteps * TICK_MS,
-      easing: Easing.linear,
-    });
-  }, []);
+  const startArrow = useCallback(
+    (arrowId: string, totalSteps: number) => {
+      if (!animProgressMap.current[arrowId]) {
+        animProgressMap.current[arrowId] = makeMutable(0);
+      }
+      const sv = animProgressMap.current[arrowId];
+      movingRef.current.add(arrowId);
+      setMovingArrows(new Set(movingRef.current));
+      cancelAnimation(sv);
+      sv.value = 0;
+      sv.value = withTiming(
+        1,
+        {
+          duration: totalSteps * TICK_MS,
+          easing: Easing.linear,
+        },
+        isFinished => {
+          if (isFinished) {
+            runOnJS(handleAnimationComplete)(arrowId, totalSteps);
+          }
+        },
+      );
+    },
+    [handleAnimationComplete],
+  );
 
   // Reject tap
   const rejectTap = useCallback((arrowId: string) => {
@@ -417,24 +450,17 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     [disabled, startArrow, rejectTap, markVisited],
   );
 
-  // Gestures for zoom & pan
-  const boardScale = useSharedValue(1);
-  const savedScale = useSharedValue(1);
-  const translateX = useSharedValue(0);
-  const savedTranslateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
-
+  // Pinch & Pan Gestures
   const pinchGesture = Gesture.Pinch()
     .onUpdate(e => {
-      boardScale.value = Math.max(0.5, Math.min(savedScale.value * e.scale, 5));
+      boardScale.value = Math.max(minScale, Math.min(savedScale.value * e.scale, maxScale));
     })
     .onEnd(() => {
       savedScale.value = boardScale.value;
     });
 
   const panGesture = Gesture.Pan()
-    .minDistance(10)
+    .minDistance(6)
     .onUpdate(e => {
       translateX.value = savedTranslateX.value + e.translationX;
       translateY.value = savedTranslateY.value + e.translationY;
@@ -444,6 +470,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       savedTranslateY.value = translateY.value;
     });
 
+  // Only two-finger pinch to zoom in/out and pan
   const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
 
   const boardAnimatedStyle = useAnimatedStyle(() => ({
@@ -453,6 +480,28 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       { scale: boardScale.value },
     ],
   }));
+
+  // Zoom control buttons for large levels
+  const handleZoomIn = useCallback(() => {
+    const next = Math.min(boardScale.value * 1.35, maxScale);
+    boardScale.value = withTiming(next, { duration: 200 });
+    savedScale.value = next;
+  }, [maxScale, boardScale, savedScale]);
+
+  const handleZoomOut = useCallback(() => {
+    const next = Math.max(boardScale.value / 1.35, minScale);
+    boardScale.value = withTiming(next, { duration: 200 });
+    savedScale.value = next;
+  }, [minScale, boardScale, savedScale]);
+
+  const handleZoomReset = useCallback(() => {
+    boardScale.value = withTiming(fitScale, { duration: 250 });
+    savedScale.value = fitScale;
+    translateX.value = withTiming(0, { duration: 250 });
+    savedTranslateX.value = 0;
+    translateY.value = withTiming(0, { duration: 250 });
+    savedTranslateY.value = 0;
+  }, [fitScale, boardScale, savedScale, translateX, savedTranslateX, translateY, savedTranslateY]);
 
   const solutionOrder = showInGameTutorial ? getSolutionOrder(state) : null;
   const bestTutorialArrowId =
@@ -468,157 +517,162 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     : null;
 
   return (
-    <GestureDetector gesture={composedGesture}>
-      <Animated.View
-        style={[{ width: boardWidth, height: boardHeight }, boardAnimatedStyle]}
-      >
-        <View
-          style={[
-            styles.board,
-            {
-              width: boardWidth,
-              height: boardHeight,
-              backgroundColor: theme.board,
-              borderColor: theme.crease,
-              shadowColor: theme.shadow,
-            },
-          ]}
+    <View style={styles.outerContainer}>
+      <GestureDetector gesture={composedGesture}>
+        <Animated.View
+          style={[{ width: boardWidth, height: boardHeight }, boardAnimatedStyle]}
         >
-          {/* 1px crease highlight line on top edge */}
-          <View style={[styles.topCrease, { backgroundColor: theme.creaseHighlight }]} />
+          <View
+            style={[
+              styles.board,
+              {
+                width: boardWidth,
+                height: boardHeight,
+                backgroundColor: theme.board,
+                borderColor: theme.crease,
+                shadowColor: theme.shadow,
+              },
+            ]}
+          >
+            {/* 1px crease highlight line on top edge */}
+            <View style={[styles.topCrease, { backgroundColor: theme.creaseHighlight }]} />
 
-          <GridBackground
-            rows={maxRows}
-            cols={maxCols}
-            cellSize={cellSize}
-            visited={visitedCells}
-            creaseColor={mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : theme.crease}
-            idleDotColor={theme.gridDotIdle || (mode === 'dark' ? 'rgba(246, 239, 228, 0.40)' : 'rgba(43, 45, 91, 0.22)')}
-            visitedDotColor={theme.gridDotVisited || (mode === 'dark' ? 'rgba(246, 239, 228, 0.18)' : 'rgba(43, 45, 91, 0.10)')}
-          />
+            <GridBackground
+              rows={maxRows}
+              cols={maxCols}
+              cellSize={cellSize}
+              visited={visitedCells}
+              creaseColor={mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : theme.crease}
+              idleDotColor={theme.gridDotIdle || (mode === 'dark' ? 'rgba(246, 239, 228, 0.40)' : 'rgba(43, 45, 91, 0.22)')}
+              visitedDotColor={theme.gridDotVisited || (mode === 'dark' ? 'rgba(246, 239, 228, 0.18)' : 'rgba(43, 45, 91, 0.10)')}
+            />
 
-          {state.arrows
-            .filter(a => a.active && !a.cleared)
-            .map(arrow => (
-              <ArrowPiece
-                key={arrow.id}
-                arrow={arrow}
-                fullPath={activePaths[arrow.id] || arrow.cells}
-                cellSize={cellSize}
-                onPress={handleArrowPress}
-                onLongPress={handleArrowLongPress}
-                disabled={disabled}
-                animProgress={animProgressMap.current[arrow.id] ?? staticProgress}
-                shakeTrigger={shakeTriggers[arrow.id] || 0}
-                failed={!!failedIds[arrow.id]}
-                onStepReached={handleStepReached}
-              />
-            ))}
+            {state.arrows
+              .filter(a => a.active && !a.cleared)
+              .map(arrow => (
+                <ArrowPiece
+                  key={arrow.id}
+                  arrow={arrow}
+                  fullPath={activePaths[arrow.id] || arrow.cells}
+                  cellSize={cellSize}
+                  onPress={handleArrowPress}
+                  onLongPress={handleArrowLongPress}
+                  disabled={disabled || movingArrows.has(arrow.id)}
+                  animProgress={animProgressMap.current[arrow.id] ?? staticProgress}
+                  shakeTrigger={shakeTriggers[arrow.id] || 0}
+                  failed={!!failedIds[arrow.id]}
+                  onStepReached={handleStepReached}
+                />
+              ))}
 
-          {/* Running Stitch Trajectory Preview (sewing thread: open = matcha/teal, blocked = vermilion/coral) */}
-          <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-            {Object.entries(trajectories).map(([id, traj]) => {
-              const arrow = state.arrows.find(a => a.id === id);
-              if (!arrow || traj.path.length === 0) return null;
+            {/* Running Stitch Trajectory Preview */}
+            <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+              {Object.entries(trajectories).map(([id, traj]) => {
+                const arrow = state.arrows.find(a => a.id === id);
+                if (!arrow || traj.path.length === 0) return null;
 
-              const isFailed = failedIds[id];
-              const color = isFailed || traj.blocked ? theme.primary : theme.success;
+                const isFailed = failedIds[id];
+                const color = isFailed || traj.blocked ? theme.primary : theme.success;
 
-              const head = arrow.cells[arrow.cells.length - 1];
-              const startX = head.c * cellSize + cellSize / 2;
-              const startY = head.r * cellSize + cellSize / 2;
+                const head = arrow.cells[arrow.cells.length - 1];
+                const startX = head.c * cellSize + cellSize / 2;
+                const startY = head.r * cellSize + cellSize / 2;
 
-              const lastCell = traj.path[traj.path.length - 1];
-              let endX = lastCell.c * cellSize + cellSize / 2;
-              let endY = lastCell.r * cellSize + cellSize / 2;
+                const lastCell = traj.path[traj.path.length - 1];
+                let endX = lastCell.c * cellSize + cellSize / 2;
+                let endY = lastCell.r * cellSize + cellSize / 2;
 
-              if (!traj.blocked) {
-                if (arrow.direction === 'UP') endY = -2000;
-                else if (arrow.direction === 'DOWN') endY = 2000;
-                else if (arrow.direction === 'LEFT') endX = -2000;
-                else if (arrow.direction === 'RIGHT') endX = 2000;
-              }
+                if (!traj.blocked) {
+                  if (arrow.direction === 'UP') endY = -2000;
+                  else if (arrow.direction === 'DOWN') endY = 2000;
+                  else if (arrow.direction === 'LEFT') endX = -2000;
+                  else if (arrow.direction === 'RIGHT') endX = 2000;
+                }
 
-              return (
-                <React.Fragment key={`traj-${id}`}>
-                  <Path
-                    d={`M ${startX} ${startY} L ${endX} ${endY}`}
-                    stroke={color}
-                    strokeWidth={3.5}
-                    strokeDasharray="5 4"
-                    strokeLinecap="round"
-                    opacity={0.8}
-                  />
-                  {traj.path.map((cell, idx) => (
-                    <Circle
-                      key={`dot-${idx}`}
-                      cx={cell.c * cellSize + cellSize / 2}
-                      cy={cell.r * cellSize + cellSize / 2}
-                      r={3.5}
-                      fill={color}
-                      opacity={0.85}
+                return (
+                  <React.Fragment key={`traj-${id}`}>
+                    <Path
+                      d={`M ${startX} ${startY} L ${endX} ${endY}`}
+                      stroke={color}
+                      strokeWidth={3.5}
+                      strokeDasharray="5 4"
+                      strokeLinecap="round"
+                      opacity={0.8}
                     />
-                  ))}
-                </React.Fragment>
-              );
-            })}
-          </Svg>
+                    {traj.path.map((cell, idx) => (
+                      <Circle
+                        key={`dot-${idx}`}
+                        cx={cell.c * cellSize + cellSize / 2}
+                        cy={cell.r * cellSize + cellSize / 2}
+                        r={3.5}
+                        fill={color}
+                        opacity={0.85}
+                      />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </Svg>
 
-          {/* Tutorial indicator */}
-          {tutorialArrow && targetCell && movingArrows.size === 0 && (
-            <Animated.View
-              style={[
-                {
-                  position: 'absolute',
-                  left: targetCell.c * cellSize + cellSize / 2 - 24,
-                  top: targetCell.r * cellSize + cellSize / 2 - 24,
-                  width: 48,
-                  height: 48,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  zIndex: 100,
-                  pointerEvents: 'none',
-                },
-                handStyle,
-              ]}
-            >
-              <View
-                style={{
-                  position: 'absolute',
-                  top: -50,
-                  backgroundColor: theme.primary,
-                  paddingHorizontal: 14,
-                  paddingVertical: 6,
-                  borderRadius: 10,
-                  shadowColor: theme.shadow,
-                  shadowOpacity: 0.25,
-                  shadowRadius: 4,
-                  elevation: 3,
-                  width: 140,
-                  alignItems: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    color: theme.primaryButtonText,
-                    fontWeight: '800',
-                    fontSize: 14,
-                    textAlign: 'center',
-                  }}
-                >
-                  Tap an arrow
-                </Text>
-              </View>
-              <Text style={{ fontSize: 44, marginTop: 36, marginLeft: 16 }}>👆</Text>
-            </Animated.View>
-          )}
+            {/* Tutorial indicator */}
+            {showInGameTutorial && tutorialArrow && targetCell && movingArrows.size === 0 && (
+              <TutorialPointer
+                targetX={targetCell.c * cellSize + cellSize / 2}
+                targetY={targetCell.r * cellSize + cellSize / 2}
+                theme={theme}
+                mode={mode}
+              />
+            )}
+          </View>
+        </Animated.View>
+      </GestureDetector>
+
+      {/* Floating Paper Craft Zoom HUD for large levels */}
+      {fitScale < 0.95 && (
+        <View style={styles.zoomControlBar} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[
+              styles.zoomBtn,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            onPress={handleZoomIn}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.zoomBtnText, { color: theme.primaryText }]}>＋</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.zoomBtn,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+            onPress={handleZoomOut}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.zoomBtnText, { color: theme.primaryText }]}>－</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.zoomFitBtn, { backgroundColor: theme.primary }]}
+            onPress={handleZoomReset}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.zoomFitBtnText, { color: theme.primaryButtonText }]}>
+              FIT
+            </Text>
+          </TouchableOpacity>
         </View>
-      </Animated.View>
-    </GestureDetector>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+  },
   board: {
     position: 'relative',
     overflow: 'visible',
@@ -649,4 +703,48 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   gridCell: { justifyContent: 'center', alignItems: 'center' },
+  zoomControlBar: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 160,
+  },
+  zoomBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  zoomBtnText: {
+    fontSize: 19,
+    fontWeight: '800',
+    lineHeight: 22,
+  },
+  zoomFitBtn: {
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  zoomFitBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
 });

@@ -7,8 +7,8 @@ import { ThemeTokens } from './types';
 export const whiteTheme: ThemeTokens = {
   appBackground: '#F6EFE4',
   surface: '#FFFDF8',
-  boardBackground: '#FFFDF8',
-  board: '#FFFDF8',
+  boardBackground: '#F6EFE4',
+  board: '#F6EFE4',
   cardBackground: '#FFFDF8',
   modalBackground: '#FFFDF8',
   primaryText: '#2B2D5B',

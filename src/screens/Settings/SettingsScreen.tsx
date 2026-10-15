@@ -1,11 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Svg, { Line, Pattern, Rect, Defs, Circle, Path, G } from 'react-native-svg';
+import Svg, { Line, Pattern, Rect, Defs, Circle, Path } from 'react-native-svg';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { IconButton } from '../../components/ui/IconButton';
 import { PaperCard } from '../../components/cards/PaperCard';
-import { getProgress, setProgress as saveProgress } from '../../storage/gameStorage';
+import { PaperButton } from '../../components/buttons/PaperButton';
+import { Modal } from '../../components/ui/Modal';
+import { getProgress, setProgress as saveProgress, resetProgress } from '../../storage/gameStorage';
 import { GameProgress } from '../../types/game.types';
 import { useTheme } from '../../theme/ThemeContext';
 import { ThemeMode } from '../../theme/types';
@@ -74,6 +76,8 @@ export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation();
   const { mode, theme, setMode } = useTheme();
   const [progress, setProgress] = useState<GameProgress | null>(null);
+  const [showResetModal, setShowResetModal] = useState<boolean>(false);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
   const loadProgress = useCallback(async () => {
     const data = await getProgress();
@@ -102,6 +106,16 @@ export const SettingsScreen: React.FC = () => {
       await saveProgress(newProgress);
     }
   }, [progress, setMode]);
+
+  const handleResetConfirm = useCallback(async () => {
+    setShowResetModal(false);
+    await resetProgress(true);
+    await loadProgress();
+    setResetSuccessMessage('Progress successfully reset to Level 1');
+    setTimeout(() => {
+      setResetSuccessMessage(null);
+    }, 3500);
+  }, [loadProgress]);
 
   if (!progress) return null;
 
@@ -183,13 +197,79 @@ export const SettingsScreen: React.FC = () => {
         <PaperCard dogEar={false} radiusSize="md" style={styles.settingsCard}>
           <View style={styles.infoRow}>
             <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Total Crafted Puzzles</Text>
-            <Text style={[styles.infoValue, { color: theme.primary }]}>10,000 Levels</Text>
+            <Text style={[styles.infoValue, { color: theme.primary }]}>Unlimited Levels</Text>
           </View>
           <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
           <View style={styles.infoRow}>
             <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Origami Engine</Text>
             <Text style={[styles.infoValue, { color: theme.primaryText }]}>v1.0 Paper Edition</Text>
           </View>
+        </PaperCard>
+
+        {/* Section 4: Progress & Reset */}
+        <Text style={[styles.sectionHeading, { color: theme.primary, marginTop: 22 }]}>SAVED PROGRESS</Text>
+
+        <PaperCard dogEar={false} radiusSize="md" style={styles.settingsCard}>
+          <View style={styles.infoRow}>
+            <View style={styles.labelCol}>
+              <Text style={[styles.settingLabel, { color: theme.primaryText }]}>Current Journey</Text>
+              <Text style={[styles.settingSub, { color: theme.mutedText }]}>
+                {progress.completedLevels?.length || 0} puzzles folded & completed
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.badgePill,
+                {
+                  backgroundColor: mode === 'dark' ? 'rgba(235, 172, 70, 0.15)' : 'rgba(217, 85, 43, 0.12)',
+                  borderColor: theme.primary,
+                },
+              ]}
+            >
+              <Text style={[styles.badgeText, { color: theme.primary }]}>Level {progress.currentLevel}</Text>
+            </View>
+          </View>
+
+          {resetSuccessMessage && (
+            <View
+              style={[
+                styles.successNotice,
+                {
+                  backgroundColor: mode === 'dark' ? 'rgba(46, 125, 50, 0.2)' : 'rgba(46, 125, 50, 0.12)',
+                  borderColor: theme.success,
+                },
+              ]}
+            >
+              <Text style={[styles.successNoticeText, { color: theme.success }]}>
+                ✓ {resetSuccessMessage}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.cardDivider, { backgroundColor: theme.divider }]} />
+
+          <Text style={[styles.settingSub, { color: theme.mutedText, marginBottom: 14 }]}>
+            Resetting your journey will restore your craft notebook to Level 1 and clear your solved puzzle history. Your sound and theme settings will be preserved.
+          </Text>
+
+          <PaperButton
+            title="Reset Progress"
+            variant="danger"
+            fullWidth
+            radiusSize="md"
+            onPress={() => setShowResetModal(true)}
+            icon={
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  stroke="#FFFFFF"
+                  strokeWidth={2.2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            }
+          />
         </PaperCard>
 
         {/* Stamped craft footer */}
@@ -202,6 +282,62 @@ export const SettingsScreen: React.FC = () => {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Reset Confirmation Modal */}
+      <Modal visible={showResetModal} onClose={() => setShowResetModal(false)} position="center">
+        <View style={styles.modalContent}>
+          <View
+            style={[
+              styles.modalIconWrap,
+              {
+                backgroundColor: mode === 'dark' ? 'rgba(211, 47, 47, 0.2)' : 'rgba(211, 47, 47, 0.12)',
+                borderColor: theme.error,
+              },
+            ]}
+          >
+            <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke={theme.error}
+                strokeWidth={2.2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </View>
+
+          <Text style={[styles.modalTitle, { color: theme.primaryText }]}>Reset All Progress?</Text>
+
+          <Text style={[styles.modalMessage, { color: theme.mutedText }]}>
+            This will permanently rewind your craft notebook back to{' '}
+            <Text style={{ fontWeight: 'bold', color: theme.primaryText }}>Level 1</Text> and clear all{' '}
+            <Text style={{ fontWeight: 'bold', color: theme.primaryText }}>{progress.completedLevels?.length || 0}</Text>{' '}
+            completed puzzle stamps.
+          </Text>
+
+          <Text style={[styles.modalSubMessage, { color: theme.error }]}>
+            This action cannot be undone.
+          </Text>
+
+          <View style={styles.modalActionGroup}>
+            <PaperButton
+              title="Yes, Reset Progress"
+              variant="danger"
+              fullWidth
+              radiusSize="md"
+              onPress={handleResetConfirm}
+              style={{ marginBottom: 10 }}
+            />
+            <PaperButton
+              title="Keep Progress"
+              variant="secondary"
+              fullWidth
+              radiusSize="md"
+              onPress={() => setShowResetModal(false)}
+            />
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 };
@@ -312,5 +448,68 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 1,
+  },
+  badgePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  successNotice: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  successNoticeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  modalContent: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  modalIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  modalMessage: {
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  modalSubMessage: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  modalActionGroup: {
+    width: '100%',
+    marginTop: 4,
   },
 });
