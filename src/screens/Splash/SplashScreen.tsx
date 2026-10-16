@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -7,12 +7,15 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withDelay,
+  withRepeat,
+  withSequence,
   Easing,
   interpolate,
 } from 'react-native-reanimated';
-import Svg, { Path, G, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 import { getProgress } from '../../storage/gameStorage';
+import { OrigamiCrane } from '../../components/origami/OrigamiCrane';
 
 type RootStackParamList = {
   Splash: undefined;
@@ -21,182 +24,146 @@ type RootStackParamList = {
 
 type SplashScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Splash'>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /**
- * Paper Craft Origami Splash Screen
- * 1. Sheet folds through 3 progressive origami steps into the arrow logo.
- * 2. An origami paper plane glides across the screen in a swooping curve.
- * 3. Cut-out paper logo text fades in.
- * 4. A torn-paper progress bar hydrates progress before navigating to Home.
+ * Modern Clean Origami Splash Screen
+ * Features:
+ * - Pure white background with soft lavender organic corner wave accents
+ * - Bold Arrow Amaze emblem and typography with "Think • Follow • Solve" tagline
+ * - Vibrantly faceted 3D Origami Crane with floating breathing animation & sparkle stars
+ * - 4-dot step loading indicator with coral-red active dot
  */
 export const SplashScreen: React.FC = () => {
   const navigation = useNavigation<SplashScreenNavigationProp>();
-  const { theme, mode } = useTheme();
+  const { mode } = useTheme();
 
-  // Animation values
-  const foldProgress = useSharedValue(0);     // 0 -> 1 (3 folds)
-  const planeProgress = useSharedValue(0);    // 0 -> 1 (paper plane glide)
-  const logoOpacity = useSharedValue(0);      // 0 -> 1
-  const tornProgress = useSharedValue(0);     // 0 -> 1
-  const screenOpacity = useSharedValue(1);    // fade out
+  // Animations
+  const contentFade = useSharedValue(0);
+  const craneScale = useSharedValue(0.85);
+  const screenFade = useSharedValue(1);
 
   useEffect(() => {
-    // 1. Fold animation over 1200ms
-    foldProgress.value = withTiming(1, {
-      duration: 1200,
-      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-    });
+    // 1. Content gentle entrance
+    contentFade.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.quad) });
+    craneScale.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.back(1.2)) });
 
-    // 2. Paper plane glide starting at 900ms
-    planeProgress.value = withDelay(
-      800,
-      withTiming(1, {
-        duration: 1000,
-        easing: Easing.out(Easing.quad),
-      }),
-    );
-
-    // 3. Logo text reveal at 1000ms
-    logoOpacity.value = withDelay(900, withTiming(1, { duration: 600 }));
-
-    // 4. Hydration & progress strip
-    tornProgress.value = withTiming(1, { duration: 1800 });
-
+    // 2. Hydrate & navigate
     const init = async () => {
       await Promise.all([
-        new Promise<void>(resolve => setTimeout(() => resolve(), 2000)), // minimum 1.8s
+        new Promise<void>(resolve => setTimeout(() => resolve(), 2200)),
         getProgress(),
       ]);
 
-      screenOpacity.value = withTiming(0, { duration: 300 });
+      screenFade.value = withTiming(0, { duration: 350 });
       setTimeout(() => {
         navigation.replace('Home');
-      }, 300);
+      }, 350);
     };
 
     init();
-  }, [foldProgress, planeProgress, logoOpacity, tornProgress, screenOpacity, navigation]);
+  }, [contentFade, craneScale, screenFade, navigation]);
 
-  // Paper plane flight curve
-  const planeStyle = useAnimatedStyle(() => {
-    const p = planeProgress.value;
-    const tx = interpolate(p, [0, 1], [-80, SCREEN_WIDTH + 80]);
-    const ty = interpolate(p, [0, 0.5, 1], [180, -40, -120]);
-    const rot = interpolate(p, [0, 0.4, 1], [-15, -28, -20]);
-    const op = interpolate(p, [0, 0.1, 0.85, 1], [0, 1, 1, 0]);
-
-    return {
-      transform: [
-        { translateX: tx },
-        { translateY: ty },
-        { rotate: `${rot}deg` },
-      ],
-      opacity: op,
-    };
-  });
-
-  const logoStyle = useAnimatedStyle(() => ({
-    opacity: logoOpacity.value,
-    transform: [{ translateY: interpolate(logoOpacity.value, [0, 1], [15, 0]) }],
+  const contentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: contentFade.value,
+    transform: [{ translateY: interpolate(contentFade.value, [0, 1], [20, 0]) }],
   }));
 
-  const screenStyle = useAnimatedStyle(() => ({
-    opacity: screenOpacity.value,
+  const craneAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: craneScale.value }],
   }));
 
-  const tornBarStyle = useAnimatedStyle(() => ({
-    width: `${tornProgress.value * 100}%`,
+  const screenAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: screenFade.value,
   }));
+
+  const isDark = mode === 'dark';
+  const bgColor = isDark ? '#1E1B4B' : '#FFFFFF';
 
   return (
-    <Animated.View style={[styles.container, { backgroundColor: theme.appBackground }, screenStyle]}>
-      {/* Gliding Origami Paper Plane */}
-      <Animated.View style={[styles.glidingPlane, planeStyle]}>
-        <Svg width={48} height={48} viewBox="0 0 32 32">
-          {/* 3D Paper Plane with Left/Right fold facets */}
-          <G>
-            <Path d="M 28 4 L 4 18 L 14 20 Z" fill={mode === 'dark' ? '#F6EFE4' : '#FFFDF8'} />
-            <Path d="M 28 4 L 14 20 L 20 28 Z" fill={mode === 'dark' ? '#D4CCBE' : '#E6DEC8'} />
-            <Path d="M 14 20 L 17 24 L 20 22 Z" fill={theme.crease} />
-            <Path d="M 28 4 L 14 20" stroke={theme.border} strokeWidth={1} />
-          </G>
-        </Svg>
-      </Animated.View>
-
-      {/* Main Origami Crest Card */}
-      <View
-        style={[
-          styles.origamiCard,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            borderTopColor: theme.creaseHighlight,
-            shadowColor: theme.shadow,
-          },
-        ]}
-      >
-        <Svg width={88} height={88} viewBox="0 0 40 40">
-          <G>
-            {/* Fold 1 & 2: Base stem origami folds */}
-            <Path d="M 15 17 L 20 14 L 20 34 L 15 34 Z" fill={theme.arrow} />
-            <Path d="M 20 14 L 25 17 L 25 34 L 20 34 Z" fill={theme.arrowCrease} />
-
-            {/* Fold 3: Head wings */}
-            <Path d="M 20 5 L 6 18 L 20 14 Z" fill={theme.primary} />
-            <Path
-              d="M 20 5 L 34 18 L 20 14 Z"
-              fill={mode === 'dark' ? '#E59D1A' : '#C23D17'}
-            />
-
-            {/* Sharp center fold crease line */}
-            <Path d="M 20 5 L 20 34" stroke="rgba(255,255,255,0.4)" strokeWidth={1.2} />
-          </G>
+    <Animated.View style={[styles.container, { backgroundColor: bgColor }, screenAnimatedStyle]}>
+      {/* Top-Left Soft Lavender Organic Wave Accent */}
+      <View style={styles.topLeftWave} pointerEvents="none">
+        <Svg width={180} height={200} viewBox="0 0 180 200">
+          <Path
+            d="M 0 0 L 160 0 C 130 60 70 90 60 140 C 50 180 20 190 0 200 Z"
+            fill={isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(224, 231, 255, 0.45)'}
+          />
+          <Path
+            d="M 0 0 L 120 0 C 90 50 40 70 30 110 C 20 140 10 150 0 160 Z"
+            fill={isDark ? 'rgba(99, 102, 241, 0.18)' : 'rgba(238, 242, 255, 0.6)'}
+          />
         </Svg>
       </View>
 
-      {/* Layered Cut-Out Typography */}
-      <Animated.View style={[styles.textBlock, logoStyle]}>
-        <View style={styles.cutoutStack}>
-          {/* Shadow layer */}
-          <Text style={[styles.title, styles.titleShadow, { color: theme.shadow }]}>
-            Arrow Amaze Go
-          </Text>
-          {/* Top paper layer */}
-          <Text style={[styles.title, { color: theme.primaryText }]}>
-            Arrow Amaze Go
-          </Text>
-        </View>
-        <Text style={[styles.subTitle, { color: theme.mutedText }]}>
-          HANDCRAFTED ORIGAMI PUZZLE
-        </Text>
-      </Animated.View>
+      {/* Bottom-Right Soft Lavender Organic Wave Accent */}
+      <View style={styles.bottomRightWave} pointerEvents="none">
+        <Svg width={200} height={200} viewBox="0 0 200 200">
+          <Path
+            d="M 200 200 L 200 60 C 150 70 120 120 70 140 C 30 155 10 180 0 200 Z"
+            fill={isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(224, 231, 255, 0.35)'}
+          />
+          <Path
+            d="M 200 200 L 200 110 C 160 120 135 150 95 170 C 65 185 40 195 0 200 Z"
+            fill="none"
+            stroke={isDark ? 'rgba(99, 102, 241, 0.25)' : 'rgba(199, 210, 254, 0.6)'}
+            strokeWidth={1.5}
+          />
+        </Svg>
+      </View>
 
-      {/* Torn-Paper Progress Strip */}
-      <View style={styles.tornStripContainer}>
-        <View
-          style={[
-            styles.tornTrack,
-            {
-              backgroundColor: mode === 'dark' ? '#26243F' : '#E6DEC8',
-              borderColor: theme.border,
-            },
-          ]}
-        >
-          <Animated.View
-            style={[
-              styles.tornFill,
-              { backgroundColor: theme.primary },
-              tornBarStyle,
-            ]}
-          >
-            {/* Torn zigzag paper edge at head of progress */}
-            <Svg width={12} height={8} viewBox="0 0 12 8" style={styles.tornEdgeSvg}>
-              <Path d="M 0 0 L 6 8 L 12 0 Z" fill={theme.primary} />
+      {/* Main Content Area */}
+      <Animated.View style={[styles.mainContent, contentAnimatedStyle]}>
+        {/* Brand Header Section */}
+        <View style={styles.brandSection}>
+          {/* Folded Geometric Origami Arrow Emblem (Enlarged) */}
+          <View style={styles.emblemContainer}>
+            <Svg width={92} height={92} viewBox="0 0 64 64">
+              {/* Top-left indigo chevron wing */}
+              <Path d="M 46 8 L 16 26 L 28 34 L 58 16 Z" fill="#4F46E5" />
+              {/* Bottom-left dark navy chevron wing */}
+              <Path d="M 28 34 L 16 26 L 30 50 L 38 42 Z" fill="#1E1B4B" />
+              {/* Forward right-pointing coral red triangle */}
+              <Path d="M 24 22 L 58 38 L 24 54 Z" fill="#FF4B3A" />
             </Svg>
-          </Animated.View>
+          </View>
+
+          {/* Large Bold Brand Title (Enlarged) */}
+          <Text style={[styles.titleLineOne, { color: isDark ? '#FFFFFF' : '#1E1B4B' }]}>
+            ARROW
+          </Text>
+          <Text style={styles.titleLineTwo}>
+            AMAZE
+          </Text>
+
+          {/* Subtitle / Tagline (Enlarged) */}
+          <Text style={[styles.tagline, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+            Think • Follow • Solve
+          </Text>
         </View>
-      </View>
+
+        {/* Centerpiece: Enlarged Multi-Color Faceted Origami Crane with Sparkle Stars */}
+        <Animated.View style={[styles.craneSection, craneAnimatedStyle]}>
+          {/* Left Sparkle Star */}
+          <Svg width={32} height={32} viewBox="0 0 24 24" style={styles.leftSparkle}>
+            <Path
+              d="M 12 0 C 12 7 17 12 24 12 C 17 12 12 17 12 24 C 12 17 7 12 0 12 C 7 12 12 7 12 0 Z"
+              fill={isDark ? '#818CF8' : '#C7D2FE'}
+            />
+          </Svg>
+
+          {/* Animated 3D Faceted Origami Crane (Enlarged to 270) */}
+          <OrigamiCrane size={270} />
+
+          {/* Right Sparkle Star */}
+          <Svg width={24} height={24} viewBox="0 0 24 24" style={styles.rightSparkle}>
+            <Path
+              d="M 12 0 C 12 7 17 12 24 12 C 17 12 12 17 12 24 C 12 17 7 12 0 12 C 7 12 12 7 12 0 Z"
+              fill={isDark ? '#818CF8' : '#C7D2FE'}
+            />
+          </Svg>
+        </Animated.View>
+      </Animated.View>
     </Animated.View>
   );
 };
@@ -204,77 +171,80 @@ export const SplashScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  glidingPlane: {
-    position: 'absolute',
-    top: '36%',
-    left: 0,
-    zIndex: 20,
-  },
-  origamiCard: {
-    width: 120,
-    height: 120,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderTopWidth: 2,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 6,
-    marginBottom: 24,
-  },
-  textBlock: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cutoutStack: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  titleShadow: {
+  topLeftWave: {
     position: 'absolute',
-    top: 2.5,
-    left: 1.5,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  subTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    marginTop: 8,
-  },
-  tornStripContainer: {
-    position: 'absolute',
-    bottom: 48,
-    width: '65%',
-    maxWidth: 240,
-    alignItems: 'center',
-  },
-  tornTrack: {
-    width: '100%',
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  tornFill: {
-    height: '100%',
-    position: 'relative',
-    borderRadius: 3,
-  },
-  tornEdgeSvg: {
-    position: 'absolute',
-    right: -4,
     top: 0,
+    left: 0,
+    zIndex: 1,
+  },
+  bottomRightWave: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    zIndex: 1,
+  },
+  mainContent: {
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    height: '84%',
+    zIndex: 10,
+    width: '100%',
+    paddingVertical: 20,
+  },
+  brandSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emblemContainer: {
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleLineOne: {
+    fontSize: 44,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+    lineHeight: 48,
+    textAlign: 'center',
+  },
+  titleLineTwo: {
+    fontSize: 44,
+    fontWeight: '900',
+    color: '#FF4B3A',
+    letterSpacing: 2.5,
+    lineHeight: 48,
+    textAlign: 'center',
+  },
+  tagline: {
+    fontSize: 19,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  craneSection: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 330,
+    height: 270,
+  },
+  leftSparkle: {
+    position: 'absolute',
+    top: 8,
+    left: 0,
+    zIndex: 5,
+  },
+  rightSparkle: {
+    position: 'absolute',
+    top: 14,
+    right: 0,
+    zIndex: 5,
   },
 });
+
+

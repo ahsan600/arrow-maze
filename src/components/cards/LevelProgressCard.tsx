@@ -44,8 +44,6 @@ export const LevelProgressCard: React.FC<LevelProgressCardProps> = React.memo(({
           {
             backgroundColor: theme.cardBackground,
             borderColor: theme.border,
-            borderTopColor: theme.creaseHighlight,
-            shadowColor: theme.shadow,
           },
         ]}
       >
@@ -55,12 +53,11 @@ export const LevelProgressCard: React.FC<LevelProgressCardProps> = React.memo(({
             style={[
               styles.stageChip,
               {
-                backgroundColor: isDark ? '#353257' : '#EFE7D8',
-                borderColor: theme.border,
+                backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
               },
             ]}
           >
-            <Text style={[styles.stageChipText, { color: theme.primary }]}>
+            <Text style={[styles.stageChipText, { color: isDark ? '#A5B4FC' : '#4338CA' }]}>
               {stageName.toUpperCase()} STAGE
             </Text>
           </View>
@@ -69,17 +66,11 @@ export const LevelProgressCard: React.FC<LevelProgressCardProps> = React.memo(({
             style={[
               styles.tierChip,
               {
-                backgroundColor: isDark ? 'rgba(242,177,52,0.15)' : 'rgba(228,87,46,0.12)',
-                borderColor: isDark ? 'rgba(242,177,52,0.3)' : 'rgba(228,87,46,0.25)',
+                backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
               },
             ]}
           >
-            <Text
-              style={[
-                styles.tierChipText,
-                { color: isDark ? theme.goldStar : theme.primary },
-              ]}
-            >
+            <Text style={[styles.tierChipText, { color: isDark ? '#FCA5A5' : '#DC2626' }]}>
               {tierName.toUpperCase()}
             </Text>
           </View>
@@ -87,12 +78,12 @@ export const LevelProgressCard: React.FC<LevelProgressCardProps> = React.memo(({
 
         {/* Centerpiece: Animated 3D Origami Crane Sculpture */}
         <View style={styles.craneContainer}>
-          <OrigamiCrane size={105} />
+          <OrigamiCrane size={155} />
         </View>
 
         {/* Title & Shape Silhouette Badge */}
         <View style={styles.titleContainer}>
-          <Text style={[styles.levelTitle, { color: theme.primaryText }]}>
+          <Text style={[styles.levelTitle, { color: isDark ? '#FFFFFF' : '#1E1B4B' }]}>
             Level {currentLevel}
           </Text>
 
@@ -101,38 +92,34 @@ export const LevelProgressCard: React.FC<LevelProgressCardProps> = React.memo(({
               style={[
                 styles.shapePill,
                 {
-                  backgroundColor: isDark ? '#2B2847' : '#F4ECE0',
-                  borderColor: theme.border,
+                  backgroundColor: isDark ? 'rgba(99, 102, 241, 0.15)' : '#EEF2FF',
                 },
               ]}
             >
-              <Text style={[styles.shapePillText, { color: theme.secondaryText }]}>
-                ✦ {shapeName.toUpperCase()} ✦
+              <Text style={[styles.shapePillText, { color: isDark ? '#A5B4FC' : '#4338CA' }]}>
+                ✦  {shapeName.toUpperCase()}  ✦
               </Text>
             </View>
           ) : null}
 
           {/* 3-Star Rating Preview */}
           <View style={styles.starsWrapper}>
-            <StarsDisplay stars={bestStars} size={22} />
+            <StarsDisplay stars={bestStars || 3} size={24} />
           </View>
         </View>
 
         {/* Chapter Milestone Progress Section */}
         <View style={styles.milestoneSection}>
           <View style={styles.milestoneLabels}>
-            <Text style={[styles.milestoneTitle, { color: theme.secondaryText }]}>
-              Chapter {chapterNumber} Progress
-            </Text>
-            <Text style={[styles.milestoneValue, { color: theme.primaryText }]}>
-              {levelInChapter}/50 ({percent}%)
+            <Text style={[styles.milestoneTitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+              Chapter {chapterNumber} Progress: {levelInChapter}/50 ({percent}%)
             </Text>
           </View>
 
           <View
             style={[
               styles.barTrack,
-              { backgroundColor: isDark ? '#1C1A2E' : '#E8DFCE' },
+              { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#EEF2FF' },
             ]}
           >
             <View
@@ -140,17 +127,10 @@ export const LevelProgressCard: React.FC<LevelProgressCardProps> = React.memo(({
                 styles.barFill,
                 {
                   width: `${percent}%`,
-                  backgroundColor: theme.primary,
+                  backgroundColor: '#6366F1',
                 },
               ]}
             />
-          </View>
-
-          <View style={styles.milestoneFooter}>
-            <Text style={[styles.milestoneSubtext, { color: theme.mutedText }]}>
-              Next chapter unlocks at Level {chapterNumber * 50 + 1}
-            </Text>
-            <OrigamiStar active={percent >= 100} size={15} fillColor={theme.goldStar} />
           </View>
         </View>
       </View>
@@ -168,16 +148,12 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    borderRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 14,
-    paddingHorizontal: 18,
+    borderRadius: 28,
+    paddingTop: 18,
+    paddingBottom: 18,
+    paddingHorizontal: 20,
     borderWidth: 1.5,
-    borderTopWidth: 2.5,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 5,
+    borderColor: '#EEF2FF',
     alignItems: 'center',
   },
   headerRow: {
@@ -188,10 +164,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   stageChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 0,
   },
   stageChipText: {
     fontSize: 10,
@@ -199,10 +175,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   tierChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 0,
   },
   tierChipText: {
     fontSize: 10,
@@ -210,31 +186,31 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   craneContainer: {
-    marginVertical: 2,
+    marginVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   titleContainer: {
     alignItems: 'center',
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   levelTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: -0.3,
     textAlign: 'center',
   },
   shapePill: {
-    marginTop: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    borderRadius: 14,
+    borderWidth: 0,
   },
   shapePillText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 1.2,
   },
   starsWrapper: {
@@ -242,21 +218,21 @@ const styles = StyleSheet.create({
   },
   milestoneSection: {
     width: '100%',
-    marginTop: 4,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(128, 128, 128, 0.12)',
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 0,
   },
   milestoneLabels: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   milestoneTitle: {
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   milestoneValue: {
     fontSize: 12,
@@ -264,13 +240,13 @@ const styles = StyleSheet.create({
   },
   barTrack: {
     width: '100%',
-    height: 8,
-    borderRadius: 4,
+    height: 10,
+    borderRadius: 5,
     overflow: 'hidden',
   },
   barFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 5,
   },
   milestoneFooter: {
     flexDirection: 'row',

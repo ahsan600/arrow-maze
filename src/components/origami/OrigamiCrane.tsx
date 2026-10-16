@@ -9,7 +9,7 @@ import Animated, {
   Easing,
   interpolate,
 } from 'react-native-reanimated';
-import Svg, { Path, Ellipse, G, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Ellipse, G } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 
 interface OrigamiCraneProps {
@@ -22,7 +22,7 @@ interface OrigamiCraneProps {
  * and a floating breathing animation with dynamic drop-shadow.
  */
 export const OrigamiCrane: React.FC<OrigamiCraneProps> = React.memo(({ size = 110 }) => {
-  const { theme, mode } = useTheme();
+  const { mode } = useTheme();
   const floatAnim = useSharedValue(0);
 
   React.useEffect(() => {
@@ -54,113 +54,67 @@ export const OrigamiCrane: React.FC<OrigamiCraneProps> = React.memo(({ size = 11
   });
 
   const isDark = mode === 'dark';
-
-  // Facet palette tailored to theme
-  const primaryWing = theme.primary;
-  const wingFoldLight = isDark ? '#FFC453' : '#F27048';
-  const wingFoldDark = isDark ? '#D8961D' : '#BF3812';
-  const bodyLight = isDark ? '#F6EFE4' : '#FFFDF8';
-  const bodyDark = isDark ? '#D5CDBC' : '#E8DFCE';
-  const neckColor = isDark ? '#F2B134' : '#E4572E';
-  const tailColor = isDark ? '#E5A52A' : '#CF431B';
-
   const width = size;
-  const height = size * 0.75;
+  const height = size * 0.85;
 
   return (
     <View style={[styles.container, { width, height: height + 24 }]}>
-      {/* Dynamic Paper Drop Shadow */}
+      {/* Dynamic Soft Drop Shadow */}
       <Animated.View style={[styles.shadowContainer, shadowStyle]}>
-        <Svg width={width * 0.7} height={18} viewBox="0 0 100 18">
-          <Ellipse cx="50" cy="9" rx="42" ry="7" fill={theme.shadow} />
+        <Svg width={width * 0.75} height={18} viewBox="0 0 100 18">
+          <Ellipse cx="50" cy="9" rx="44" ry="6" fill={isDark ? 'rgba(0,0,0,0.3)' : 'rgba(99, 102, 241, 0.12)'} />
         </Svg>
       </Animated.View>
 
       {/* Floating Crane Origami Sculpture */}
       <Animated.View style={[styles.craneWrapper, craneStyle]}>
         <Svg width={width} height={height} viewBox="0 0 140 105">
-          <Defs>
-            <LinearGradient id="wingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor={wingFoldLight} />
-              <Stop offset="100%" stopColor={primaryWing} />
-            </LinearGradient>
-            <LinearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <Stop offset="0%" stopColor={bodyLight} />
-              <Stop offset="100%" stopColor={bodyDark} />
-            </LinearGradient>
-          </Defs>
-
           <G>
-            {/* Back Wing Upper Facet */}
-            <Path
-              d="M 70 54 L 126 12 L 86 50 Z"
-              fill={wingFoldDark}
-              opacity={0.85}
-            />
-            {/* Back Wing Lower Facet */}
-            <Path
-              d="M 86 50 L 126 12 L 102 62 Z"
-              fill={wingFoldDark}
-              opacity={0.65}
-            />
+            {/* 1. Left Lower Wing Underfolds (Deep Indigo/Navy) */}
+            <Path d="M 38 56 L 68 76 L 54 68 Z" fill="#1E3A8A" />
+            <Path d="M 20 48 L 54 68 L 34 68 Z" fill="#2563EB" />
 
-            {/* Origami Tail */}
-            <Path
-              d="M 88 52 L 122 42 L 82 66 Z"
-              fill={tailColor}
-              opacity={0.9}
-            />
+            {/* 2. Left Main Wing (Royal Blue & Cobalt) */}
+            <Path d="M 68 54 L 6 42 L 50 64 Z" fill="#3B82F6" />
+            <Path d="M 50 64 L 6 42 L 32 72 Z" fill="#1D4ED8" />
 
-            {/* Center Body - Left Diamond Facet */}
-            <Path
-              d="M 70 54 L 46 50 L 68 84 Z"
-              fill="url(#bodyGrad)"
-            />
-            {/* Center Body - Right Diamond Facet */}
-            <Path
-              d="M 70 54 L 92 50 L 68 84 Z"
-              fill={bodyDark}
-            />
+            {/* 3. Tall Upper Wing (Yellow & Gold) */}
+            {/* Left facet of upper wing (Orange/Amber) */}
+            <Path d="M 68 54 L 54 4 L 68 34 Z" fill="#F97316" />
+            {/* Center-left facet */}
+            <Path d="M 68 34 L 54 4 L 76 38 Z" fill="#F59E0B" />
+            {/* Right facet of upper wing (Bright Golden Yellow) */}
+            <Path d="M 76 38 L 54 4 L 88 48 Z" fill="#FBBF24" />
 
-            {/* Neck Fold */}
-            <Path
-              d="M 46 50 L 22 28 L 38 60 Z"
-              fill={neckColor}
-            />
-            {/* Beak / Head fold */}
-            <Path
-              d="M 22 28 L 10 32 L 24 38 Z"
-              fill={wingFoldDark}
-            />
+            {/* 4. Center Body Fold (Vibrant Red & Coral) */}
+            <Path d="M 68 54 L 54 62 L 72 82 Z" fill="#EF4444" />
+            <Path d="M 68 54 L 72 82 L 84 62 Z" fill="#DC2626" />
 
-            {/* Front Wing - Main Lift Facet */}
-            <Path
-              d="M 70 54 L 20 8 L 52 50 Z"
-              fill="url(#wingGrad)"
-            />
-            {/* Front Wing - Under Crease Fold */}
-            <Path
-              d="M 52 50 L 20 8 L 38 62 Z"
-              fill={wingFoldLight}
-            />
+            {/* 5. Right Neck & Head (Golden Amber & Coral Red with dark beak) */}
+            {/* Back neck fold */}
+            <Path d="M 84 62 L 102 38 L 86 48 Z" fill="#F59E0B" />
+            {/* Front neck fold */}
+            <Path d="M 84 62 L 116 42 L 102 38 Z" fill="#FBBF24" />
+            {/* Neck lower facet */}
+            <Path d="M 84 62 L 96 74 L 116 42 Z" fill="#EA580C" />
+            {/* Head fold */}
+            <Path d="M 116 42 L 128 48 L 120 54 Z" fill="#EF4444" />
+            {/* Beak / Tip */}
+            <Path d="M 128 48 L 130 51 L 120 54 Z" fill="#1E3A8A" />
 
-            {/* Crisp 1px Paper Crease Accent Lines */}
+            {/* Subtle crease highlight */}
             <Path
-              d="M 70 54 L 20 8 M 70 54 L 126 12 M 70 54 L 68 84 M 46 50 L 22 28"
+              d="M 68 54 L 54 4 M 68 54 L 6 42 M 68 54 L 72 82"
               stroke="rgba(255, 255, 255, 0.45)"
               strokeWidth={1}
-              fill="none"
-            />
-            <Path
-              d="M 88 52 L 122 42 M 22 28 L 10 32"
-              stroke="rgba(0, 0, 0, 0.15)"
-              strokeWidth={0.8}
               fill="none"
             />
           </G>
         </Svg>
       </Animated.View>
     </View>
+
+
   );
 });
 

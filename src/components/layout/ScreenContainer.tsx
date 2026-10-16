@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StatusBar, ViewProps, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Line, Pattern, Rect, Defs } from 'react-native-svg';
+import Svg, { Pattern, Rect, Defs, Circle } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 
 interface ScreenContainerProps extends ViewProps {
@@ -10,17 +10,18 @@ interface ScreenContainerProps extends ViewProps {
   useBackgroundImage?: boolean;
   overlayOpacity?: number;
   edges?: readonly ('top' | 'right' | 'bottom' | 'left')[];
+  showDots?: boolean;
 }
 
 /**
- * ScreenContainer with Craft Table Paper Texture
- * Sets up safe area, status bar, and faint paper craft-table grain/cutting-mat grid.
+ * ScreenContainer with Full-Screen Dot Matrix Grid
  */
 export const ScreenContainer: React.FC<ScreenContainerProps> = React.memo(({
   children,
   centered = false,
   useBackgroundImage = false,
   edges,
+  showDots = true,
   style,
   ...props
 }) => {
@@ -40,34 +41,25 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = React.memo(({
         {...(Platform.OS === 'android' ? { backgroundColor: 'transparent', translucent: true } : {})}
       />
 
-      {/* Faint paper cutting mat / craft table grid lines */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Svg width="100%" height="100%">
-          <Defs>
-            <Pattern id="craftGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <Line
-                x1="0"
-                y1="40"
-                x2="40"
-                y2="40"
-                stroke={theme.crease}
-                strokeWidth="0.8"
-                strokeDasharray="2 4"
-              />
-              <Line
-                x1="40"
-                y1="0"
-                x2="40"
-                y2="40"
-                stroke={theme.crease}
-                strokeWidth="0.8"
-                strokeDasharray="2 4"
-              />
-            </Pattern>
-          </Defs>
-          <Rect width="100%" height="100%" fill="url(#craftGrid)" />
-        </Svg>
-      </View>
+      {/* Full-screen seamless dot matrix grid */}
+      {showDots && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Svg width="100%" height="100%">
+            <Defs>
+              <Pattern id="dotMatrix" width="24" height="24" patternUnits="userSpaceOnUse">
+                <Circle
+                  cx="12"
+                  cy="12"
+                  r="1.4"
+                  fill={mode === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(43, 45, 91, 0.18)'}
+                />
+              </Pattern>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#dotMatrix)" />
+          </Svg>
+        </View>
+      )}
+
 
       <SafeAreaView style={{ flex: 1 }} edges={edges}>
         <View style={[styles.container, centered && styles.centered, style]} {...props}>

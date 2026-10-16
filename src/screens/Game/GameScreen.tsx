@@ -24,7 +24,7 @@ import {
 import { GameProgress } from '../../types/game.types';
 import { useTheme } from '../../theme/ThemeContext';
 import { ThemeMode } from '../../theme/types';
-import { WaterDrop } from '../../components/icons/WaterDrop';
+import { HeartsDisplay } from '../../components/ui/HeartsDisplay';
 import { Modal } from '../../components/ui/Modal';
 import { StarsDisplay } from '../../components/ui/StarsDisplay';
 import { Button } from '../../components/ui/Button';
@@ -224,6 +224,7 @@ export const GameScreen: React.FC = () => {
     <ScreenContainer
       useBackgroundImage={true}
       overlayOpacity={0.15}
+      showDots={false}
       style={styles.container}
     >
       {/* Top Header */}
@@ -232,27 +233,20 @@ export const GameScreen: React.FC = () => {
           icon="back"
           onPress={() => navigation.goBack()}
           iconColor={theme.primaryText}
-          style={[styles.headerCircleBtn, { backgroundColor: theme.cardBackground }]}
+          style={[styles.headerCircleBtn, { backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF' }]}
           size={24}
         />
 
         <View style={styles.levelHeaderCenter}>
-          <Text style={[styles.levelTitleText, { color: theme.primaryText }]}>Level {levelId}</Text>
-          <View
-            style={[
-              styles.levelStatsPill,
-              {
-                backgroundColor:
-                  mode === 'dark'
-                    ? 'rgba(255, 255, 255, 0.08)'
-                    : 'rgba(43, 45, 91, 0.06)',
-                borderColor: theme.crease,
-              },
-            ]}
-          >
-            <Text style={[styles.levelStatsText, { color: theme.secondaryText }]}>
-              Failed: {failedAttempts} • Hints: {hintsUsed}
-            </Text>
+          {/* Level Pill */}
+          <View style={[styles.levelPill, { backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF' }]}>
+            <Text style={[styles.levelTitleText, { color: theme.primaryText }]}>Level {levelId}</Text>
+          </View>
+
+          {/* Hearts Pill directly underneath */}
+          <View style={[styles.heartsPill, { backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF' }]}>
+            <HeartsDisplay current={drops} max={3} size={20} />
+            <Text style={[styles.heartsText, { color: theme.primaryText }]}>{drops}/3</Text>
           </View>
         </View>
 
@@ -261,21 +255,9 @@ export const GameScreen: React.FC = () => {
             icon="settings"
             onPress={() => setShowSettingsModal(true)}
             iconColor={theme.primaryText}
-            style={[styles.headerCircleBtn, { backgroundColor: theme.cardBackground }]}
+            style={[styles.headerCircleBtn, { backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : '#FFFFFF' }]}
             size={24}
           />
-        </View>
-      </View>
-
-      {/* Life/Drops HUD Indicator */}
-      <View style={styles.hudRow}>
-        <View style={styles.dropsPill}>
-          <View style={styles.dropsList}>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <WaterDrop key={i} size={22} empty={i >= drops} />
-            ))}
-          </View>
-          <Text style={styles.dropsText}>{drops}/3</Text>
         </View>
       </View>
 
@@ -891,7 +873,7 @@ export const GameScreen: React.FC = () => {
               marginBottom: 6,
             }}
           >
-            Out of Drops!
+            Out of Hearts!
           </Text>
 
           <Text
@@ -905,7 +887,7 @@ export const GameScreen: React.FC = () => {
               marginBottom: 20,
             }}
           >
-            You used all 3 drops on this puzzle. Don't worry, every maze has a solution!
+            You used all 3 hearts on this puzzle. Don't worry, every maze has a solution!
           </Text>
 
           {/* Progress / Stats Card */}
@@ -1042,77 +1024,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 4,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 6,
   },
   headerCircleBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1.5,
+    borderColor: '#EEF2FF',
   },
   levelHeaderCenter: {
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  levelPill: {
+    paddingHorizontal: 26,
+    paddingVertical: 7,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   levelTitleText: {
-    fontSize: 25,
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
-  levelStatsPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 3,
-    borderRadius: 12,
-    marginTop: 3,
-    borderWidth: 1,
+  heartsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#EEF2FF',
   },
-  levelStatsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+  heartsText: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginLeft: 2,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  hudRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    paddingHorizontal: 18,
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  dropsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1.5,
-    borderColor: '#BAE6FD',
-  },
-  dropsList: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  dropsText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0284C7',
   },
   boardContainer: {
     flex: 1,

@@ -38,83 +38,70 @@ export interface PuzzleBoardProps {
   hintArrowId?: string | null;
 }
 
-/* Origami Board Grid — Memoized faint dashed fold lines and craft dots */
+interface GridBackgroundProps {
+  rows: number;
+  cols: number;
+  cellSize: number;
+  dotColor?: string;
+  pad?: number;
+}
+
+/**
+ * GridBackground renders the dot matrix directly inside the zoomable board,
+ * so dots stay perfectly anchored behind every arrow vertex and zoom with the board.
+ */
 const GridBackground = memo(function GridBackground({
   rows,
   cols,
   cellSize,
-  visited,
-  creaseColor,
-  idleDotColor,
-  visitedDotColor,
-}: {
-  rows: number;
-  cols: number;
-  cellSize: number;
-  visited: Set<string>;
-  creaseColor: string;
-  idleDotColor: string;
-  visitedDotColor: string;
-}) {
-  const w = cols * cellSize;
-  const h = rows * cellSize;
+  dotColor = 'rgba(43, 45, 91, 0.20)',
+  pad = 6,
+}: GridBackgroundProps) {
+  const totalCols = cols + pad * 2;
+  const totalRows = rows + pad * 2;
+  const width = totalCols * cellSize;
+  const height = totalRows * cellSize;
+  const left = -pad * cellSize;
+  const top = -pad * cellSize;
+  const dotRadius = Math.max(1.5, Math.round(cellSize * 0.04));
+
+  const dots: { cx: number; cy: number; key: string }[] = [];
+  for (let r = 0; r < totalRows; r++) {
+    for (let c = 0; c < totalCols; c++) {
+      dots.push({
+        cx: c * cellSize + cellSize / 2,
+        cy: r * cellSize + cellSize / 2,
+        key: `${r}_${c}`,
+      });
+    }
+  }
 
   return (
-    <View style={styles.gridBackground}>
-      {/* Faint fold lines on origami board */}
-      <Svg width={w} height={h} style={StyleSheet.absoluteFill}>
-        {Array.from({ length: cols + 1 }).map((_, i) => (
-          <Line
-            key={`col-${i}`}
-            x1={i * cellSize}
-            y1={0}
-            x2={i * cellSize}
-            y2={h}
-            stroke={creaseColor}
-            strokeWidth={0.7}
-            strokeDasharray="2 4"
-          />
-        ))}
-        {Array.from({ length: rows + 1 }).map((_, i) => (
-          <Line
-            key={`row-${i}`}
-            x1={0}
-            y1={i * cellSize}
-            x2={w}
-            y2={i * cellSize}
-            stroke={creaseColor}
-            strokeWidth={0.7}
-            strokeDasharray="2 4"
+    <View
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width,
+        height,
+      }}
+      pointerEvents="none"
+    >
+      <Svg width={width} height={height}>
+        {dots.map(d => (
+          <Circle
+            key={d.key}
+            cx={d.cx}
+            cy={d.cy}
+            r={dotRadius}
+            fill={dotColor}
           />
         ))}
       </Svg>
-
-      {/* Grid dots at intersections */}
-      {Array.from({ length: rows }).map((_, r) => (
-        <View key={r} style={{ flexDirection: 'row', height: cellSize, width: w }}>
-          {Array.from({ length: cols }).map((_, c) => {
-            const isVisited = visited.has(`${r},${c}`);
-            return (
-              <View
-                key={c}
-                style={[styles.gridCell, { width: cellSize, height: cellSize }]}
-              >
-                <View
-                  style={{
-                    width: Math.max(3, Math.min(6, cellSize * 0.12)),
-                    height: Math.max(3, Math.min(6, cellSize * 0.12)),
-                    borderRadius: 3,
-                    backgroundColor: isVisited ? visitedDotColor : idleDotColor,
-                  }}
-                />
-              </View>
-            );
-          })}
-        </View>
-      ))}
     </View>
   );
 });
+
 
 export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
   state,
@@ -206,13 +193,9 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       markVisited(a.cells, state.gridSize.rows, state.gridSize.cols);
   }, [state, markVisited]);
 
-  // Gestures for zoom & pan
+  // Gestures for zoom (stationary board, no pan/drag)
   const boardScale = useSharedValue(fitScale);
   const savedScale = useSharedValue(fitScale);
-  const translateX = useSharedValue(0);
-  const savedTranslateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
 
   // Unmount cleanup: cancel any remaining animations when switching levels or restarting
   useEffect(() => {
@@ -450,7 +433,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
     [disabled, startArrow, rejectTap, markVisited],
   );
 
-  // Pinch & Pan Gestures
+  // Pinch-to-zoom only (board remains locked in center, drag is disabled)
   const pinchGesture = Gesture.Pinch()
     .onUpdate(e => {
       boardScale.value = Math.max(minScale, Math.min(savedScale.value * e.scale, maxScale));
@@ -459,26 +442,8 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
       savedScale.value = boardScale.value;
     });
 
-  const panGesture = Gesture.Pan()
-    .minDistance(6)
-    .onUpdate(e => {
-      translateX.value = savedTranslateX.value + e.translationX;
-      translateY.value = savedTranslateY.value + e.translationY;
-    })
-    .onEnd(() => {
-      savedTranslateX.value = translateX.value;
-      savedTranslateY.value = translateY.value;
-    });
-
-  // Only two-finger pinch to zoom in/out and pan
-  const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
-
   const boardAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { translateY: translateY.value },
-      { scale: boardScale.value },
-    ],
+    transform: [{ scale: boardScale.value }],
   }));
 
   // Zoom control buttons for large levels
@@ -497,11 +462,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
   const handleZoomReset = useCallback(() => {
     boardScale.value = withTiming(fitScale, { duration: 250 });
     savedScale.value = fitScale;
-    translateX.value = withTiming(0, { duration: 250 });
-    savedTranslateX.value = 0;
-    translateY.value = withTiming(0, { duration: 250 });
-    savedTranslateY.value = 0;
-  }, [fitScale, boardScale, savedScale, translateX, savedTranslateX, translateY, savedTranslateY]);
+  }, [fitScale, boardScale, savedScale]);
 
   const solutionOrder = showInGameTutorial ? getSolutionOrder(state) : null;
   const bestTutorialArrowId =
@@ -518,7 +479,7 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
 
   return (
     <View style={styles.outerContainer}>
-      <GestureDetector gesture={composedGesture}>
+      <GestureDetector gesture={pinchGesture}>
         <Animated.View
           style={[{ width: boardWidth, height: boardHeight }, boardAnimatedStyle]}
         >
@@ -528,24 +489,19 @@ export const PuzzleBoard: React.FC<PuzzleBoardProps> = ({
               {
                 width: boardWidth,
                 height: boardHeight,
-                backgroundColor: theme.board,
-                borderColor: theme.crease,
-                shadowColor: theme.shadow,
+                backgroundColor: 'transparent',
               },
             ]}
           >
-            {/* 1px crease highlight line on top edge */}
-            <View style={[styles.topCrease, { backgroundColor: theme.creaseHighlight }]} />
-
+            {/* Grid dots rendered inside zoomable board so they stay locked behind arrows */}
             <GridBackground
               rows={maxRows}
               cols={maxCols}
               cellSize={cellSize}
-              visited={visitedCells}
-              creaseColor={mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : theme.crease}
-              idleDotColor={theme.gridDotIdle || (mode === 'dark' ? 'rgba(246, 239, 228, 0.40)' : 'rgba(43, 45, 91, 0.22)')}
-              visitedDotColor={theme.gridDotVisited || (mode === 'dark' ? 'rgba(246, 239, 228, 0.18)' : 'rgba(43, 45, 91, 0.10)')}
+              dotColor={mode === 'dark' ? 'rgba(255, 255, 255, 0.22)' : 'rgba(43, 45, 91, 0.20)'}
+              pad={6}
             />
+
 
             {state.arrows
               .filter(a => a.active && !a.cleared)
@@ -676,22 +632,11 @@ const styles = StyleSheet.create({
   board: {
     position: 'relative',
     overflow: 'visible',
-    borderRadius: 20,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 10,
-    elevation: 4,
+    borderRadius: 0,
+    borderWidth: 0,
   },
   topCrease: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1.5,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    zIndex: 10,
+    display: 'none',
   },
   gridBackground: {
     position: 'absolute',

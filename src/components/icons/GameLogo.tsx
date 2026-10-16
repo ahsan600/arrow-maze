@@ -79,23 +79,44 @@ export const GameLogo: React.FC<GameLogoProps> = React.memo(({ horizontal = fals
   if (horizontal) {
     return (
       <View style={styles.horizontalRow}>
-        <Animated.View style={[animatedStyle, { marginRight: 10 }]}>
-          {renderOrigamiArrowBadge(42)}
+        <Animated.View style={[animatedStyle, { marginRight: 14 }]}>
+          <Svg width={54} height={54} viewBox="0 0 64 64">
+            {/* Top-left indigo chevron wing */}
+            <Path d="M 46 8 L 16 26 L 28 34 L 58 16 Z" fill="#4F46E5" />
+            {/* Bottom-left dark navy chevron wing */}
+            <Path d="M 28 34 L 16 26 L 30 50 L 38 42 Z" fill="#1E1B4B" />
+            {/* Forward right-pointing coral red triangle */}
+            <Path d="M 24 22 L 58 38 L 24 54 Z" fill="#FF4B3A" />
+          </Svg>
         </Animated.View>
-        <View>
-          {/* Layered cut-out shadow text */}
-          <View style={styles.cutoutTextLayer}>
-            <Text style={[styles.cutoutBase, { color: theme.shadow }]}>
-              ARROW <Text style={{ color: theme.shadow }}>AMAZE</Text>
-            </Text>
-            <Text style={[styles.cutoutFront, { color: theme.primaryText }]}>
-              ARROW <Text style={{ color: theme.primary }}>AMAZE</Text>
-            </Text>
-          </View>
+        <View style={{ justifyContent: 'center' }}>
+          <Text
+            style={{
+              fontSize: 26,
+              fontWeight: '900',
+              color: mode === 'dark' ? '#FFFFFF' : '#1E1B4B',
+              letterSpacing: 1.5,
+              lineHeight: 27,
+            }}
+          >
+            ARROW
+          </Text>
+          <Text
+            style={{
+              fontSize: 26,
+              fontWeight: '900',
+              color: '#FF4B3A',
+              letterSpacing: 1.5,
+              lineHeight: 27,
+            }}
+          >
+            AMAZE
+          </Text>
         </View>
       </View>
     );
   }
+
 
   return (
     <View style={styles.verticalContainer}>
